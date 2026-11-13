@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>AnneTea BrewTrack · POS</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="icon" href="logo.png" type="image/png" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <div class="toast-wrap" id="toastWrap"></div>
+  <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()" title="Toggle light/dark mode">🌙</button>
+
+  <!-- LOGIN -->
+  <div id="loginScreen" class="screen active">
+    <div class="login-wrap">
+      <div class="login-card">
+        <img src="logo.png" alt="AnneTea" class="login-logo" />
+        <h1>AnneTea BrewTrack</h1>
+        <p class="tagline">Sales & Inventory System · annetea.com</p>
+        <form id="loginForm" onsubmit="return doLogin(event)">
+          <div class="field">
+            <label for="username">Username</label>
+            <input type="text" id="username" autocomplete="username" required />
+          </div>
+          <div class="field">
+            <label for="password">Password</label>
+            <input type="password" id="password" autocomplete="current-password" required />
+            <button type="button" class="pwd-toggle" onclick="togglePassword()" tabindex="-1">Show</button>
+          </div>
+          <button type="submit" class="btn-login" id="loginBtn">Sign In</button>
+          <p id="loginError" class="error-msg" hidden></p>
+          <p id="lockoutMsg" class="lockout-msg" hidden></p>
+        </form>
+        <p class="forgot-link"><a href="#" onclick="return openForgotPassword()">Forgot password?</a></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- POS -->
+  <div id="posScreen" class="screen">
+    <header class="topbar">
+      <div class="brand">
+        <img src="logo.png" alt="" class="brand-logo" />
+        <div>
+          <div class="brand-name">AnneTea BrewTrack</div>
+          <div class="brand-role" id="displayRole">Staff</div>
+        </div>
+      </div>
+      <div class="clock" id="clock"></div>
+      <div class="top-actions">
+        <button class="tb-btn" id="btnDashboard" onclick="openDashboard()" hidden>Dashboard</button>
+        <button class="tb-btn" id="btnMgmt" onclick="openManagement()">Manage</button>
+        <button class="tb-btn" onclick="openInventory()" class="stock-btn">Stock</button>
+        <button class="tb-btn" onclick="openSalesHistory()">History</button>
+        <button class="tb-btn" onclick="openReports()">Today</button>
+        <button class="tb-btn outline" onclick="doLogout()">Logout</button>
+      </div>
+    </header>
+
+    <div class="workspace">
+      <nav class="cat-nav" id="catNav"></nav>
+      <section class="products" id="productGrid"></section>
+      <aside class="ticket">
+        <div class="ticket-head">
+          <span>Order</span>
+          <button class="link-btn" onclick="clearOrder()">Clear</button>
+        </div>
+        <div class="ticket-body" id="orderList">
+          <div class="empty-state">Tap items to add</div>
+        </div>
+        <div class="ticket-foot">
+          <div class="totals">
+            <div class="row"><span>Subtotal</span><span id="subtotal">₱0.00</span></div>
+            <div class="row grand"><span>Total</span><span id="grandTotal">₱0.00</span></div>
+          </div>
+          <div class="pay-row">
+            <button class="pay cash" onclick="takePayment('Cash')">Cash</button>
+            <button class="pay gcash" onclick="openGCash()">GCash</button>
+          </div>
+          <div class="util-row">
+            <button class="util void" onclick="voidLastItem()">Void Last</button>
+            <button class="util print" onclick="previewReceipt()">Receipt</button>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <!-- OWNER DASHBOARD -->
+  <div id="dashScreen" class="screen">
+    <header class="topbar">
+      <div class="brand">
+        <img src="logo.png" alt="" class="brand-logo" />
+        <div>
+          <div class="brand-name">Owner Dashboard</div>
+          <div class="brand-role">AnneTea BrewTrack</div>
+        </div>
+      </div>
+      <div class="clock" id="clock2"></div>
+      <div class="top-actions">
+        <button class="tb-btn" onclick="backToPOS()">← Back to POS</button>
+        <button class="tb-btn" onclick="openManagement()">Manage</button>
+        <button class="tb-btn outline" onclick="doLogout()">Logout</button>
+      </div>
+    </header>
+    <div class="dash-body">
+      <div class="kpi-row">
+        <div class="kpi">
+          <div class="kpi-label">Today’s Sales</div>
+          <div class="kpi-value" id="kpiRevenue">₱0</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">Transactions</div>
+          <div class="kpi-value" id="kpiCount">0</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">Avg Ticket</div>
+          <div class="kpi-value" id="kpiAvg">₱0</div>
+        </div>
+        <div class="kpi warn">
+          <div class="kpi-label">Low Stock Items</div>
+          <div class="kpi-value" id="kpiLow">0</div>
+        </div>
+      </div>
+      <div class="dash-grid">
+        <div class="card">
+          <h3>Sales (Last 7 Days)</h3>
+          <canvas id="salesChart" height="180"></canvas>
+        </div>
+        <div class="card">
+          <h3>Best Sellers Today</h3>
+          <div id="bestSellers" class="best-list"></div>
+        </div>
+        <div class="card wide">
+          <h3>Recent Transactions</h3>
+          <div id="recentSales" class="table-wrap"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MANAGEMENT -->
+  <div id="mgmtScreen" class="screen">
+    <header class="topbar">
+      <div class="brand">
+        <img src="logo.png" alt="" class="brand-logo" />
+        <div>
+          <div class="brand-name">Management</div>
+          <div class="brand-role">Products · Stock · History</div>
+        </div>
+      </div>
+      <div class="clock" id="clock3"></div>
+      <div class="top-actions">
+        <button class="tb-btn" onclick="backToPOS()">← POS</button>
+        <button class="tb-btn" onclick="openDashboard()">Dashboard</button>
+        <button class="tb-btn outline" onclick="doLogout()">Logout</button>
+      </div>
+    </header>
+    <div class="mgmt-body">
+      <div class="mgmt-tabs">
+        <button class="mgmt-tab active" data-tab="products" data-owner-only="1" onclick="switchMgmtTab(this)">Products</button>
+        <button class="mgmt-tab" data-tab="restock" onclick="switchMgmtTab(this)">Restock</button>
+        <button class="mgmt-tab" data-tab="history" onclick="switchMgmtTab(this)">Stock History</button>
+        <button class="mgmt-tab" data-tab="recipes" data-owner-only="1" onclick="switchMgmtTab(this)">Recipes</button>
+        <button class="mgmt-tab" data-tab="accounts" data-owner-only="1" onclick="switchMgmtTab(this)">Accounts</button>
+      </div>
+      <div id="tab-products" class="mgmt-panel active">
+        <div class="panel-head">
+          <h3>Product Catalog</h3>
+          <button class="btn-sm" onclick="showProductForm()">+ Add Product</button>
+        </div>
+        <div id="productTable" class="table-wrap"></div>
+      </div>
+      <div id="tab-restock" class="mgmt-panel">
+        <div class="panel-head"><h3>Restock / Adjust Inventory</h3></div>
+        <form id="restockForm" class="restock-form" onsubmit="return submitRestock(event)">
+          <div class="field">
+            <label>Ingredient</label>
+            <select id="restockItem" required></select>
+          </div>
+          <div class="field">
+            <label>Quantity (+ add / − remove)</label>
+            <input type="number" id="restockQty" step="0.1" required />
+          </div>
+          <div class="field">
+            <label>Reason</label>
+            <select id="restockReason">
+              <option value="restock">Restock / Delivery</option>
+              <option value="adjustment">Manual Adjustment</option>
+              <option value="waste">Waste / Spoilage</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Expiration date (for this batch)</label>
+            <input type="date" id="restockExpiry" />
+            <p class="hint-text" style="margin-top:4px;margin-bottom:0">Alert 5 days before expiry.</p>
+          </div>
+          <div class="field">
+            <label>Notes (optional)</label>
+            <input type="text" id="restockNotes" placeholder="e.g. Supplier delivery #4521" />
+          </div>
+          <button type="submit" class="btn-login">Save Adjustment</button>
+        </form>
+        <div id="restockMsg" class="msg" hidden></div>
+      </div>
+      <div id="tab-history" class="mgmt-panel">
+        <div class="panel-head"><h3>Inventory changes over time</h3></div>
+        <p class="hint-text">Tracks restocks, waste, adjustments, and automatic deductions from sales.</p>
+        <div class="history-filters" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px">
+          <input type="text" id="stockHistoryFilter" placeholder="Search item, user, notes…" oninput="renderHistory()" style="flex:1;min-width:180px;padding:10px 12px;border-radius:8px;border:1px solid var(--line);background:var(--panel-2);color:var(--text)" />
+          <select id="stockHistoryReason" onchange="renderHistory()" style="padding:10px 12px;border-radius:8px;border:1px solid var(--line);background:var(--panel-2);color:var(--text)">
+            <option value="all">All reasons</option>
+            <option value="sale">Sales only</option>
+            <option value="restock">Restock only</option>
+            <option value="adjustment">Adjustments</option>
+            <option value="waste">Waste</option>
+          </select>
+        </div>
+        <div id="historyTable" class="table-wrap"></div>
+      </div>
+      <div id="tab-recipes" class="mgmt-panel">
+        <div class="panel-head"><h3>Recipe → Ingredient Mapping</h3></div>
+        <p class="hint-text">These rules control automatic deduction after every sale.</p>
+        <div id="recipeList" class="recipe-cards"></div>
+      </div>
+      <div id="tab-accounts" class="mgmt-panel">
+        <div class="panel-head">
+          <h3>User Accounts</h3>
+          <button class="btn-sm" onclick="showAccountForm()">+ Add Account</button>
+        </div>
+        <div id="accountsTable" class="table-wrap"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Account form modal -->
+  <div id="accountModal" class="modal">
+    <div class="modal-box">
+      <h3 id="accountModalTitle">Add Account</h3>
+      <form id="accountForm" onsubmit="return saveAccount(event)">
+        <input type="hidden" id="acctEditUser" />
+        <div class="field" style="text-align:left">
+          <label>Username</label>
+          <input type="text" id="acctUsername" required autocomplete="off" />
+        </div>
+        <div class="field" style="text-align:left">
+          <label>Role</label>
+          <select id="acctRole" required>
+            <option value="staff">Staff</option>
+            <option value="co_owner">Co-owner</option>
+            <option value="owner">Owner</option>
+          </select>
+        </div>
+        <div class="field" style="text-align:left">
+          <label id="acctPassLabel">Password</label>
+          <input type="password" id="acctPassword" autocomplete="new-password" />
+        </div>
+        <p id="acctError" class="error-msg" hidden></p>
+        <div style="margin-top:14px">
+          <button type="submit" class="btn-primary">Save</button>
+          <button type="button" class="modal-close" onclick="closeAllModals()">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Product form modal -->
+  <div id="productModal" class="modal">
+    <div class="modal-box large">
+      <h3 id="productModalTitle">Add Product</h3>
+      <form id="productForm" onsubmit="return saveProduct(event)">
+        <input type="hidden" id="prodId" />
+        <div class="field">
+          <label>Name</label>
+          <input type="text" id="prodName" required />
+        </div>
+        <div class="field">
+          <label>Category</label>
+          <select id="prodCat" required></select>
+        </div>
+        <div class="price-row">
+          <div class="field"><label>M</label><input type="number" id="priceM" step="1" min="0" /></div>
+          <div class="field"><label>L</label><input type="number" id="priceL" step="1" min="0" /></div>
+          <div class="field"><label>XL</label><input type="number" id="priceXL" step="1" min="0" /></div>
+          <div class="field"><label>REG</label><input type="number" id="priceREG" step="1" min="0" /></div>
+        </div>
+        <label class="check"><input type="checkbox" id="prodStar" /> Best seller</label>
+        <div class="field" style="text-align:left;margin-top:12px">
+          <label for="prodExpiry">Expiration date (optional)</label>
+          <input type="date" id="prodExpiry" />
+          <p class="hint-text" style="margin-top:6px;margin-bottom:0">System alerts 5 days before this date.</p>
+        </div>
+        <div style="margin-top:16px">
+          <button type="submit" class="btn-primary">Save</button>
+          <button type="button" class="modal-close" onclick="closeAllModals()">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Size + Sugar modal -->
+  <div id="sizeModal" class="modal">
+    <div class="modal-box" style="max-width:400px">
+      <h3 id="sizeTitle">Choose size</h3>
+      <div class="size-grid" id="sizeGrid"></div>
+      <div id="sugarSection" hidden>
+        <h4 class="option-label">Sugar level</h4>
+        <div class="sugar-grid" id="sugarGrid"></div>
+      </div>
+      <button class="modal-close" onclick="closeAllModals()">Cancel</button>
+    </div>
+  </div>
+
+  <!-- Sugar-only modal (single-size drinks) -->
+  <div id="sugarModal" class="modal">
+    <div class="modal-box" style="max-width:400px">
+      <h3 id="sugarTitle">Sugar level</h3>
+      <div class="sugar-grid" id="sugarGridSolo"></div>
+      <button class="modal-close" onclick="closeAllModals()">Cancel</button>
+    </div>
+  </div>
+
+  <!-- Cash calculator modal (McD-style) -->
+  <div id="cashModal" class="modal">
+    <div class="modal-box cash-box">
+      <h3>Cash Payment</h3>
+      <div class="cash-due">
+        <span>Amount due</span>
+        <strong id="cashDue">₱0.00</strong>
+      </div>
+      <div class="field" style="text-align:left">
+        <label>Customer cash</label>
+        <input type="text" id="cashTendered" readonly inputmode="decimal" placeholder="0.00" />
+      </div>
+      <div class="cash-change-row">
+        <span>Change</span>
+        <strong id="cashChange">₱0.00</strong>
+      </div>
+      <div class="numpad" id="cashNumpad">
+        <button type="button" data-k="7">7</button>
+        <button type="button" data-k="8">8</button>
+        <button type="button" data-k="9">9</button>
+        <button type="button" data-k="4">4</button>
+        <button type="button" data-k="5">5</button>
+        <button type="button" data-k="6">6</button>
+        <button type="button" data-k="1">1</button>
+        <button type="button" data-k="2">2</button>
+        <button type="button" data-k="3">3</button>
+        <button type="button" data-k="0">0</button>
+        <button type="button" data-k="00">00</button>
+        <button type="button" data-k=".">.</button>
+        <button type="button" data-k="exact" class="np-exact">Exact</button>
+        <button type="button" data-k="clear" class="np-clear">C</button>
+        <button type="button" data-k="back">⌫</button>
+        <button type="button" data-k="eq" class="np-eq">=</button>
+      </div>
+      <p id="cashError" class="error-msg" hidden></p>
+      <div class="gcash-actions" style="margin-top:12px">
+        <button class="btn-primary" id="cashConfirmBtn" onclick="confirmCashPayment()">Complete Sale</button>
+        <button class="modal-close" onclick="closeAllModals()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Inventory modal -->
+  <div id="invModal" class="modal">
+    <div class="modal-box large inv-modal-box">
+      <h3>Inventory Status</h3>
+      <div class="inv-toolbar">
+        <button type="button" class="btn-sm" onclick="showAddInventoryItem()">+ Add item</button>
+      </div>
+      <div id="invTable" class="table-wrap inv-scroll"></div>
+      <button class="modal-close" onclick="closeAllModals()" style="margin-top:12px">Close</button>
+    </div>
+  </div>
+
+  <!-- Add inventory item modal -->
+  <div id="invItemModal" class="modal">
+    <div class="modal-box">
+      <h3 id="invItemModalTitle">Add inventory item</h3>
+      <form onsubmit="return saveInventoryItem(event)">
+        <div class="field" style="text-align:left">
+          <label>Item name</label>
+          <input type="text" id="invItemName" required placeholder="e.g. Brown Sugar" />
+        </div>
+        <div class="field" style="text-align:left">
+          <label>Starting quantity</label>
+          <input type="number" id="invItemQty" step="0.1" min="0" value="0" required />
+        </div>
+        <div class="field" style="text-align:left">
+          <label>Expiration date (optional)</label>
+          <input type="date" id="invItemExpiry" />
+        </div>
+        <p id="invItemError" class="error-msg" hidden></p>
+        <div style="margin-top:14px">
+          <button type="submit" class="btn-primary">Save</button>
+          <button type="button" class="modal-close" onclick="document.getElementById('invItemModal').classList.remove('show')">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- GCash payment modal -->
+  <div id="gcashModal" class="modal">
+    <div class="modal-box gcash-box">
+      <div class="gcash-header">
+        <span class="gcash-logo">GCash</span>
+        <span style="font-weight:600;font-size:1rem">Pay with GCash</span>
+      </div>
+      <div class="gcash-amount" id="gcashAmount">₱0.00</div>
+      <p class="gcash-hint">Enter the customer’s GCash reference number. It must be exactly 13 digits.</p>
+      <div class="field" style="text-align:left;margin:14px 0">
+        <label for="gcashRefInput">GCash Reference No.</label>
+        <input type="text" id="gcashRefInput" placeholder="13 digits only" maxlength="13" inputmode="numeric" autocomplete="off" />
+      </div>
+      <div class="gcash-actions">
+        <button class="btn-primary" id="gcashConfirmBtn" onclick="confirmGCashPayment()">Confirm Payment</button>
+        <button class="modal-close" onclick="cancelGCash()">Cancel</button>
+      </div>
+      <div class="gcash-status waiting" id="gcashStatus"></div>
+    </div>
+  </div>
+
+  <!-- Forgot password modal -->
+  <div id="forgotModal" class="modal">
+    <div class="modal-box">
+      <h3>Reset Password</h3>
+      <p class="hint-text" style="margin-bottom:14px">Enter your username. The owner can also reset staff passwords under Manage → Accounts.</p>
+      <div class="field" style="text-align:left">
+        <label for="forgotUser">Username</label>
+        <input type="text" id="forgotUser" autocomplete="username" />
+      </div>
+      <div class="field" style="text-align:left">
+        <label for="forgotNew">New password</label>
+        <input type="password" id="forgotNew" autocomplete="new-password" />
+      </div>
+      <div class="field" style="text-align:left">
+        <label for="forgotConfirm">Confirm new password</label>
+        <input type="password" id="forgotConfirm" autocomplete="new-password" />
+      </div>
+      <p id="forgotError" class="error-msg" hidden></p>
+      <div style="margin-top:14px">
+        <button class="btn-primary" onclick="submitForgotPassword()">Reset Password</button>
+        <button class="modal-close" onclick="closeAllModals()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Expiry notification banner -->
+  <div id="expiryBanner" class="expiry-banner" hidden role="alert" onclick="goToExpiringProducts(event)">
+    <span class="banner-icon" aria-hidden="true">📅</span>
+    <span class="banner-msg" id="expiryBannerText">Products expiring soon</span>
+    <button type="button" class="banner-cta" onclick="event.stopPropagation(); goToExpiringProducts(event)">View</button>
+    <button type="button" class="banner-close" onclick="event.stopPropagation(); dismissExpiryBanner()" title="Dismiss">×</button>
+  </div>
+
+  <!-- Low stock notification banner -->
+  <div id="lowStockBanner" class="low-stock-banner" hidden role="alert" onclick="goToLowStock(event)">
+    <span class="banner-icon" aria-hidden="true">⚠</span>
+    <span class="banner-msg" id="lowStockBannerText">Low stock alert</span>
+    <button type="button" class="banner-cta" onclick="event.stopPropagation(); goToLowStock(event)">Fix now</button>
+    <button type="button" class="banner-close" onclick="event.stopPropagation(); dismissLowStockBanner()" title="Dismiss">×</button>
+  </div>
+
+  <!-- Receipt modal -->
+  <div id="receiptModal" class="modal">
+    <div class="modal-box receipt-box">
+      <div id="receiptPaper" class="receipt-paper"></div>
+      <div class="receipt-actions">
+        <button class="btn-primary" onclick="window.print()">Print</button>
+        <button class="modal-close" onclick="closeAllModals()">Done</button>
+      </div>
+    </div>
+  </div>
+
+    <!-- Sales / payment history (all roles) -->
+  <div id="salesHistoryModal" class="modal">
+    <div class="modal-box large" style="max-width:640px;text-align:left">
+      <h3 style="text-align:center">Payment & Receipt History</h3>
+      <div class="field" style="margin-bottom:10px">
+        <input type="text" id="salesHistoryFilter" placeholder="Search ref, method, cashier…" oninput="renderSalesHistory()" />
+      </div>
+      <div id="salesHistoryTable" class="table-wrap" style="max-height:420px;overflow:auto"></div>
+      <div style="margin-top:14px;text-align:center">
+        <button class="modal-close" onclick="closeAllModals()">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
