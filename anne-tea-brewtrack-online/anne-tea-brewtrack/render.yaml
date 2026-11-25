@@ -1,0 +1,23 @@
+# Render "Blueprint": creates the online AnneTea BrewTrack from this GitHub repository.
+# Render asks for the values marked sync:false when you create it (see DEPLOY.md).
+services:
+  - type: web
+    name: annetea-brewtrack
+    runtime: python
+    plan: free
+    region: singapore
+    buildCommand: pip install -r requirements.txt
+    # one worker keeps every device on the same copy of the data; threads let many devices connect at once
+    startCommand: gunicorn server:app --workers 1 --threads 8 --timeout 60 --bind 0.0.0.0:$PORT
+    healthCheckPath: /api/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.7
+      - key: SHOP_KEY
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: BREVO_API_KEY
+        sync: false
+      - key: MAIL_FROM
+        sync: false

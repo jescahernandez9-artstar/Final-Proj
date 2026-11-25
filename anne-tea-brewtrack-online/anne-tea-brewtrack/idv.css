@@ -1,0 +1,108 @@
+/* AnneTea BrewTrack — Identity verification dialog (uses the app's theme variables) */
+.idv-box { max-width: 640px; text-align: left; padding: 22px 22px 20px; }
+.idv-box h3 { margin-bottom: 12px; }
+.idv-box .hint-text { margin-bottom: 10px; }
+.idv-sub { margin: 18px 0 10px; font-size: .95rem; font-weight: 800; color: var(--accent); }
+
+/* Stepper */
+.idv-stepper { list-style: none; display: flex; gap: 4px; margin: 0 0 18px; padding: 0; counter-reset: s; }
+.idv-stepper li { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 5px; position: relative; min-width: 0; }
+.idv-stepper li::before { content: ""; position: absolute; top: 13px; left: -50%; width: 100%; height: 2px; background: var(--line); z-index: 0; }
+.idv-stepper li:first-child::before { display: none; }
+.idv-stepper .dot {
+  position: relative; z-index: 1; width: 28px; height: 28px; border-radius: 50%;
+  display: grid; place-items: center; font-size: .78rem; font-weight: 800;
+  background: var(--panel); border: 2px solid var(--line-strong); color: var(--muted);
+}
+.idv-stepper .nm { font-size: .68rem; color: var(--muted); text-align: center; line-height: 1.15; }
+.idv-stepper li.active .dot { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+.idv-stepper li.active .nm { color: var(--text); font-weight: 700; }
+.idv-stepper li.done .dot { background: var(--green); border-color: var(--green); color: #fff; }
+.idv-stepper li.done::before, .idv-stepper li.active::before { background: var(--green); }
+
+/* Step 1 */
+.idv-chips { list-style: none; display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 14px; padding: 0; }
+.idv-chips li { font-size: .78rem; padding: 5px 10px; border-radius: 999px; background: var(--accent-soft); color: var(--text); border: 1px solid var(--line); }
+.idv-preview { margin: 0 0 10px; border: 1.5px dashed var(--line-strong); border-radius: 12px; padding: 8px; text-align: center; background: var(--product-bg, transparent); }
+.idv-preview img { max-width: 100%; max-height: 220px; border-radius: 8px; }
+.idv-consent { display: flex; gap: 10px; align-items: flex-start; margin: 12px 0; font-size: .84rem; line-height: 1.4; }
+.idv-consent input { margin-top: 3px; flex: none; }
+.idv-tips { font-size: .8rem; }
+.idv-actions { margin-top: 16px; display: flex; flex-wrap: wrap; gap: 8px; }
+.idv-actions .btn-primary { margin-right: 0; }
+.idv-actions .btn-primary:disabled { opacity: .45; cursor: not-allowed; }
+
+/* Step 2 / 4 progress */
+.idv-scan { text-align: center; padding: 18px 8px; }
+.idv-spinner { width: 42px; height: 42px; margin: 0 auto 12px; border-radius: 50%; border: 4px solid var(--line); border-top-color: var(--green); animation: idvSpin .9s linear infinite; }
+@keyframes idvSpin { to { transform: rotate(360deg); } }
+.idv-bar { height: 8px; border-radius: 99px; background: var(--line); overflow: hidden; margin: 10px auto 8px; max-width: 320px; }
+.idv-bar i { display: block; height: 100%; background: var(--green); transition: width .3s; }
+
+/* Results */
+.idv-result { text-align: center; padding: 14px 10px; border-radius: 14px; margin-bottom: 12px; }
+.idv-result .big { width: 54px; height: 54px; margin: 0 auto 8px; border-radius: 50%; display: grid; place-items: center; font-size: 1.7rem; font-weight: 900; color: #fff; }
+.idv-result h3 { margin-bottom: 6px; }
+.idv-result.ok { background: var(--success-soft); }
+.idv-result.ok .big { background: var(--green); }
+.idv-result.bad { background: var(--danger-soft); }
+.idv-result.bad .big { background: var(--danger-bg); }
+.idv-reasons { margin: 0 0 8px; padding-left: 20px; font-size: .88rem; color: var(--text); line-height: 1.5; }
+.idv-reasons li { margin-bottom: 4px; }
+.idv-table { width: 100%; border-collapse: collapse; font-size: .86rem; margin-bottom: 10px; }
+.idv-table th, .idv-table td { padding: 8px 6px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+.idv-table th { width: 32%; color: var(--muted); font-weight: 600; }
+.idv-table td.ok { width: 28px; color: var(--green); font-weight: 900; text-align: center; }
+
+/* Step 3 camera */
+.idv-cam { position: relative; width: 100%; max-width: 480px; margin: 0 auto 10px; aspect-ratio: 4 / 3; background: #000; border-radius: 14px; overflow: hidden; border: 2px solid var(--line-strong); }
+.idv-cam video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); display: block; }
+.idv-oval { position: absolute; left: 50%; top: 50%; width: 48%; height: 78%; transform: translate(-50%, -50%); border: 3px dashed rgba(255,255,255,.65); border-radius: 50%; pointer-events: none; }
+.idv-banner { position: absolute; left: 8px; right: 8px; bottom: 8px; padding: 9px 12px; border-radius: 10px; background: rgba(0,0,0,.72); color: #fff; font-size: .9rem; font-weight: 700; text-align: center; }
+.idv-banner.ok { background: rgba(23,120,74,.9); }
+.idv-banner.bad { background: rgba(192,57,43,.9); }
+.idv-pills { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-bottom: 10px; }
+.pill { font-size: .78rem; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line-strong); color: var(--muted); }
+.pill.ok { background: var(--success-soft); color: var(--green); border-color: var(--green); }
+.pill.bad { background: var(--danger-soft); color: var(--danger); border-color: var(--danger); }
+.idv-capsteps { list-style: none; margin: 0 0 10px; padding: 0; display: grid; gap: 6px; }
+.idv-capsteps li { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; font-size: .88rem; color: var(--muted); }
+.idv-capsteps .ci { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: .72rem; font-weight: 800; border: 1.5px solid var(--line-strong); flex: none; }
+.idv-capsteps li.now { border-color: var(--accent); color: var(--text); background: var(--accent-soft); font-weight: 700; }
+.idv-capsteps li.done { color: var(--text); border-color: var(--green); }
+.idv-capsteps li.done .ci { background: var(--green); border-color: var(--green); color: #fff; font-size: 0; }
+.idv-capsteps li.done .ci::after { content: "✓"; font-size: .8rem; }
+.idv-force { margin: 4px 0; }
+
+/* Step 5 form */
+.idv-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+#idvForm input[readonly] { opacity: .75; cursor: not-allowed; }
+@media (max-width: 520px) {
+  .idv-row { grid-template-columns: 1fr; gap: 0; }
+  .idv-stepper .nm { font-size: .6rem; }
+}
+
+/* Limitations */
+.idv-limits { margin: 10px 0 4px; border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; font-size: .84rem; }
+.idv-limits summary { cursor: pointer; font-weight: 700; color: var(--accent); }
+.idv-limits ul { margin: 8px 0 2px; padding-left: 18px; line-height: 1.5; color: var(--muted); }
+
+/* Accounts table badges */
+.pill-status { display: inline-block; font-size: .74rem; padding: 3px 9px; border-radius: 999px; border: 1px solid var(--line-strong); color: var(--muted); white-space: nowrap; }
+.pill-status.ok { background: var(--success-soft); color: var(--green); border-color: var(--green); font-weight: 700; }
+.pill-status.bad { background: var(--danger-soft); color: var(--danger); border-color: var(--danger); font-weight: 700; }
+
+@media (prefers-reduced-motion: reduce) { .idv-spinner { animation: none; } }
+
+/* face sign-in + identity settings */
+.btn-face { width: 100%; margin-top: 10px; padding: 12px; border-radius: 12px; border: 2px solid var(--green); background: transparent; color: var(--green); font-weight: 800; font-size: .95rem; cursor: pointer; }
+.btn-face:hover { background: var(--success-soft); }
+.idv-choice { display: flex; gap: 10px; align-items: flex-start; padding: 12px; margin: 8px 0; border: 2px solid var(--line-strong); border-radius: 12px; cursor: pointer; text-align: left; }
+.idv-choice:has(input:checked) { border-color: var(--green); background: var(--success-soft); }
+.idv-choice input { margin-top: 4px; }
+.idv-loginpick { margin: 14px 0; text-align: left; }
+.login-method { display: flex; gap: 6px; padding: 4px; margin-bottom: 14px; border-radius: 12px; background: var(--success-soft, #e8f5e9); }
+.login-method button { flex: 1; padding: 9px 8px; border: 0; border-radius: 9px; background: transparent; color: inherit; font-weight: 800; font-size: .9rem; cursor: pointer; }
+.login-method button.active { background: var(--green, #2e7d32); color: #fff; }
+.login-face-hint { text-align: left; margin: -4px 0 10px; }
+#faceLoginBtn:not([hidden]) { background: var(--green, #2e7d32); color: #fff; }

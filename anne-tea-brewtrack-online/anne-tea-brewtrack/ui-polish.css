@@ -1,0 +1,85 @@
+/* ==========================================================================
+   AnneTea BrewTrack — UI/UX polish (v7)
+   Loaded last. Only changes the look; every id, button and feature is the same.
+   ========================================================================== */
+
+/* ---------- Keyboard focus that is easy to see ---------- */
+button:focus-visible, .tb-btn:focus-visible, .cat-btn:focus-visible, .prod:focus-visible, .mgmt-tab:focus-visible, a:focus-visible {
+  outline: 3px solid var(--focus, #7ad9ab); outline-offset: 2px;
+}
+
+/* ---------- Top bar ---------- */
+.topbar { gap: 10px; }
+.top-actions { overflow-x: auto; scrollbar-width: none; }
+.top-actions::-webkit-scrollbar { display: none; }
+.tb-btn { flex-shrink: 0; }
+@media (max-width: 640px) {
+  .topbar { padding: 0 8px; }
+  .brand-name, .clock { display: none; }
+  .brand { flex-shrink: 0; }
+  .top-actions { gap: 2px; min-width: 0; }
+  .tb-btn { padding: 8px; min-height: 42px; }
+}
+
+/* ---------- POS product cards ---------- */
+.prod { transition: transform .12s, box-shadow .15s, border-color .15s, background .15s; }
+.prod .chip, .prod [class*="price"] span { font-variant-numeric: tabular-nums; }
+.prod.oos { filter: grayscale(.85); opacity: .55; }
+
+/* ---------- Management pages: comfortable reading width ---------- */
+.mgmt-body { padding-left: max(20px, calc((100% - 1240px) / 2)); padding-right: max(20px, calc((100% - 1240px) / 2)); }
+.mgmt-tabs { position: sticky; top: -18px; z-index: 5; box-shadow: var(--shadow-sm); }
+.mgmt-tab { min-height: 40px; }
+.panel-head h3, .mgmt-panel > h3 { letter-spacing: -.01em; }
+
+/* ---------- Restock form: a tidy card, two columns on wide screens ---------- */
+#restockForm {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 20px;
+  box-shadow: var(--shadow-sm); max-width: 860px;
+  display: grid; grid-template-columns: 1fr; gap: 4px 18px;
+}
+#restockForm .field { margin-bottom: 10px; }
+#restockForm .qty-pair, #restockForm .restock-preview, #restockForm #restockMsg, #restockForm .form-actions { grid-column: 1 / -1; }
+@media (min-width: 900px) {
+  #restockForm { grid-template-columns: 1fr 1fr; }
+  #restockForm .field:has(#restockPhotoPicker) { grid-column: 1 / -1; }
+}
+.qty-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.qty-pair .field { padding: 12px; border-radius: 12px; border: 1px solid var(--line); margin-bottom: 0 !important; transition: opacity .15s; }
+.qty-pair .qty-add { background: var(--success-soft); border-color: color-mix(in srgb, var(--green-2) 40%, transparent); }
+.qty-pair .qty-remove { background: var(--danger-soft); border-color: color-mix(in srgb, var(--danger) 40%, transparent); }
+.qty-pair .qty-add label::before { content: "+ "; color: var(--green-2); }
+.qty-pair .qty-remove label::before { content: "− "; color: var(--danger); }
+.qty-pair input { font-size: 1.15rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.qty-pair .field.is-off { opacity: .45; }
+.qty-pair .field.is-off input { cursor: not-allowed; }
+#restockForm .restock-preview { margin: 8px 0 6px; padding: 10px 12px; border-radius: 10px; background: var(--panel-2); }
+#restockForm .restock-preview:empty { display: none; }
+#restockForm .form-actions { display: flex; gap: 8px; padding-top: 10px; border-top: 1px solid var(--line); margin-top: 6px; }
+#restockForm .form-actions .btn-primary { min-width: 140px; }
+@media (max-width: 480px) { .qty-pair { grid-template-columns: 1fr; } #restockForm { padding: 14px; } }
+
+/* ---------- Tables: readable rows, actions as small buttons ---------- */
+td .link-btn { padding: 6px 10px; border-radius: 8px; font-weight: 700; }
+tbody tr { transition: background .12s; }
+tbody tr:hover td { background: color-mix(in srgb, var(--panel-2) 70%, transparent); }
+
+/* ---------- Inventory window: wide enough to show every column ---------- */
+.modal-box.inv-modal-box { max-width: min(980px, calc(100vw - 24px)); }
+
+/* ---------- Recipes tab: ingredients as wrapping chips (no sideways scrolling) ---------- */
+#recipeList td { vertical-align: top; }
+#recipeList td:nth-child(2) { white-space: normal; min-width: 280px; }
+.rc-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.rc-chip { display: inline-flex; gap: 6px; align-items: baseline; padding: 4px 10px; border-radius: 99px; background: var(--panel-2); border: 1px solid var(--line); font-size: .82rem; white-space: nowrap; }
+.rc-chip > span:first-child { font-weight: 700; }
+.rc-chip > span:last-child { color: var(--muted); }
+.rc-opt { display: block; margin-top: 6px; }
+
+/* ---------- Modals & toasts ---------- */
+.modal-box h3 { letter-spacing: -.01em; }
+.toast { box-shadow: 0 12px 28px rgba(0,0,0,.28); }
+#recipeList table { width: 100%; }
+#recipeList td:nth-child(2), #recipeList th:nth-child(2) { width: 62%; }
+#restockForm .qty-pair { margin: 6px 0 12px; }
+#recipeList { display: block; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; box-shadow: var(--shadow-sm); margin-top: 12px; }

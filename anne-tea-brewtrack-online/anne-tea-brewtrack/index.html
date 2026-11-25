@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>AnneTea BrewTrack · POS</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="stock-menu.css" />
+  <link rel="stylesheet" href="idv.css" />
+  <link rel="stylesheet" href="ui-polish.css" />
+  <link rel="icon" href="logo.png" type="image/png" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <!-- Identity verification: open-source OCR + face recognition (run in the browser) -->
+  <script defer src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.13/dist/face-api.js"></script>
+</head>
+<body>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<symbol id="i-pos" viewBox="0 0 24 24"><path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><path d="M6 2v2M10 2v2M14 2v2"/></symbol>
+<symbol id="i-dash" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></symbol>
+<symbol id="i-manage" viewBox="0 0 24 24"><path d="M21 4h-7M10 4H3M21 12h-9M8 12H3M21 20h-5M12 20H3M14 2v4M8 10v4M16 18v4"/></symbol>
+<symbol id="i-stock" viewBox="0 0 24 24"><path d="m7.5 4.27 9 5.15"/><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5M12 22V12"/></symbol>
+<symbol id="i-history" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5M12 7v5l4 2"/></symbol>
+<symbol id="i-today" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18m-12 6 2 2 4-4"/></symbol>
+<symbol id="i-logout" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></symbol>
+<symbol id="i-back" viewBox="0 0 24 24"><path d="m12 19-7-7 7-7M19 12H5"/></symbol>
+<symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></symbol>
+<symbol id="i-moon" viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></symbol>
+<symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14M12 5v14"/></symbol>
+<symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+<symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></symbol>
+<symbol id="i-cash" viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></symbol>
+<symbol id="i-phone" viewBox="0 0 24 24"><rect x="5" y="2" width="14" height="20" rx="2"/><path d="M12 18h.01"/></symbol>
+<symbol id="i-receipt" viewBox="0 0 24 24"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8M12 17.5v-11"/></symbol>
+<symbol id="i-undo" viewBox="0 0 24 24"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></symbol>
+<symbol id="i-alert" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3ZM12 9v4M12 17h.01"/></symbol>
+<symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+<symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></symbol>
+<symbol id="i-chevron" viewBox="0 0 24 24"><path d="m18 15-6-6-6 6"/></symbol>
+<symbol id="i-trend" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></symbol>
+<symbol id="i-wallet" viewBox="0 0 24 24"><path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1"/><path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"/></symbol>
+</defs></svg>
+  <div class="toast-wrap" id="toastWrap" aria-live="polite"></div>
+  <button class="theme-toggle theme-btn" id="themeToggle" onclick="toggleTheme()" title="Toggle light/dark mode" aria-label="Toggle light or dark mode"><svg class="ic ic-sun" aria-hidden="true"><use href="#i-sun"/></svg><svg class="ic ic-moon" aria-hidden="true"><use href="#i-moon"/></svg></button>
+
+  <!-- LOGIN -->
+  <div id="loginScreen" class="screen active">
+    <div class="login-wrap">
+      <div class="login-card">
+        <img src="logo.png" alt="AnneTea" class="login-logo" />
+        <h1>AnneTea BrewTrack</h1>
+        <p class="tagline">Sales & Inventory System · annetea.com</p>
+        <form id="loginForm" onsubmit="return doLogin(event)">
+          <div class="login-method" role="group" aria-label="Sign in with">
+            <button type="button" data-lm="password" class="active" aria-pressed="true" onclick="setLoginMethod('password')">Password</button>
+            <button type="button" data-lm="face" aria-pressed="false" onclick="setLoginMethod('face')">Face recognition</button>
+          </div>
+          <div class="field">
+            <label for="username">Username</label>
+            <input type="text" id="username" autocomplete="username" required oninput="updateLoginMethodHint()" />
+          </div>
+          <p class="hint-text login-face-hint" id="loginFaceHint" hidden></p>
+          <div class="field" id="loginPassField">
+            <label for="password">Password</label>
+            <input type="password" id="password" autocomplete="current-password" required minlength="8" maxlength="15" />
+            <button type="button" class="pwd-toggle" onclick="togglePassword()" tabindex="-1">Show</button>
+          </div>
+          <p class="hint-text" id="loginPassHint" style="text-align:left;margin:-6px 0 12px">8–15 chars · upper · lower · number · symbol</p>
+          <button type="submit" class="btn-login" id="loginBtn">Sign In</button>
+          <button type="button" class="btn-face" id="faceLoginBtn" onclick="loginWithFace()" hidden>Sign in with face recognition</button>
+          <p id="loginError" class="error-msg" role="alert" hidden></p>
+                  </form>
+        <p class="forgot-link"><a href="#" onclick="return openForgotPassword()">Forgot password?</a></p>
+        <p id="syncStatus" class="hint-text" style="margin-top:10px"></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- POS -->
+  <div id="posScreen" class="screen">
+    <header class="topbar">
+      <div class="brand">
+        <img src="logo.png" alt="" class="brand-logo" />
+        <div>
+          <div class="brand-name">AnneTea BrewTrack</div>
+          <div class="brand-role" id="displayRole">Staff</div>
+        </div>
+      </div>
+      <div class="clock" id="clock"></div>
+      <div class="top-actions">
+        <button class="tb-btn" data-undo-btn disabled onclick="undoLast()" title="Undo last action (Ctrl+Z)"><svg class="ic " aria-hidden="true"><use href="#i-undo"/></svg><span class="lbl">Undo</span></button><button class="tb-btn " id="btnDashboard" hidden onclick="openDashboard()" title="Dashboard"><svg class="ic " aria-hidden="true"><use href="#i-dash"/></svg><span class="lbl">Dashboard</span></button><button class="tb-btn " id="btnMgmt" onclick="openManagement()" title="Manage"><svg class="ic " aria-hidden="true"><use href="#i-manage"/></svg><span class="lbl">Manage</span></button><button class="tb-btn " id="btnStock" data-stock-btn onclick="openInventory()" title="Stock"><svg class="ic " aria-hidden="true"><use href="#i-stock"/></svg><span class="lbl">Stock</span></button><button class="tb-btn "  onclick="openSalesHistory()" title="History"><svg class="ic " aria-hidden="true"><use href="#i-history"/></svg><span class="lbl">History</span></button><button class="tb-btn "  onclick="openTodayPage()" title="Today"><svg class="ic " aria-hidden="true"><use href="#i-today"/></svg><span class="lbl">Today</span></button><button class="tb-btn icon theme-btn" onclick="toggleTheme()" title="Toggle light/dark mode" aria-label="Toggle light or dark mode"><svg class="ic ic-sun" aria-hidden="true"><use href="#i-sun"/></svg><svg class="ic ic-moon" aria-hidden="true"><use href="#i-moon"/></svg></button><button class="tb-btn "  onclick="openMyIdentity()" title="My ID &amp; face login"><svg class="ic " aria-hidden="true"><use href="#i-info"/></svg><span class="lbl">My ID</span></button><button class="tb-btn outline"  onclick="doLogout()" title="Logout"><svg class="ic " aria-hidden="true"><use href="#i-logout"/></svg><span class="lbl">Logout</span></button>
+      </div>
+    </header>
+
+    <div class="workspace">
+      <nav class="cat-nav" id="catNav"></nav>
+      <section class="products" id="productGrid"></section>
+      <aside class="ticket" id="ticket">
+        <div class="ticket-head" onclick="onTicketHeadClick(event)">
+          <div class="ticket-title"><span>Order</span><span class="count-pill zero" id="orderCount">0</span><span class="ticket-mini" id="miniTotal">₱0.00</span></div>
+          <div style="display:flex;align-items:center;gap:4px">
+            <button class="link-btn" id="btnClear" onclick="clearOrder()"><svg class="ic " aria-hidden="true"><use href="#i-trash"/></svg> Clear</button>
+            <svg class="ic ticket-chevron" aria-hidden="true"><use href="#i-chevron"/></svg>
+          </div>
+        </div>
+        <div class="ticket-body" id="orderList">
+          <div class="empty-state"><span class="empty-ico">🧋</span><strong>No items yet</strong>Tap a product to start an order</div>
+        </div>
+        <div class="ticket-foot">
+          <div class="totals">
+            <div class="row"><span>Subtotal</span><span id="subtotal">₱0.00</span></div>
+            <div class="row grand"><span>Total</span><span id="grandTotal">₱0.00</span></div>
+          </div>
+          <div class="pay-row">
+            <button class="pay cash" id="payCash" onclick="takePayment('Cash')"><svg class="ic ic-lg" aria-hidden="true"><use href="#i-cash"/></svg> Cash</button>
+            <button class="pay gcash" id="payGcash" onclick="openGCash()"><svg class="ic ic-lg" aria-hidden="true"><use href="#i-phone"/></svg> GCash</button>
+          </div>
+          <div class="util-row">
+            <button class="util void" id="btnVoid" onclick="voidLastItem()"><svg class="ic " aria-hidden="true"><use href="#i-undo"/></svg> Void Last</button>
+            <button class="util print" id="btnReceipt" onclick="previewReceipt()"><svg class="ic " aria-hidden="true"><use href="#i-receipt"/></svg> Receipt</button>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <!-- OWNER DASHBOARD -->
+  <div id="dashScreen" class="screen">
+    <header class="topbar">
+      <div class="brand">
+        <img src="logo.png" alt="" class="brand-logo" />
+        <div>
+          <div class="brand-name">Owner Dashboard</div>
+          <div class="brand-role">AnneTea BrewTrack</div>
+        </div>
+      </div>
+      <div class="clock" id="clock2"></div>
+      <div class="top-actions">
+        <button class="tb-btn "  onclick="backToPOS()" title="Back to POS"><svg class="ic " aria-hidden="true"><use href="#i-back"/></svg><span class="lbl">Back to POS</span></button><button class="tb-btn "  onclick="openManagement()" title="Manage"><svg class="ic " aria-hidden="true"><use href="#i-manage"/></svg><span class="lbl">Manage</span></button><button class="tb-btn icon theme-btn" onclick="toggleTheme()" title="Toggle light/dark mode" aria-label="Toggle light or dark mode"><svg class="ic ic-sun" aria-hidden="true"><use href="#i-sun"/></svg><svg class="ic ic-moon" aria-hidden="true"><use href="#i-moon"/></svg></button><button class="tb-btn outline"  onclick="doLogout()" title="Logout"><svg class="ic " aria-hidden="true"><use href="#i-logout"/></svg><span class="lbl">Logout</span></button>
+      </div>
+    </header>
+    <div class="dash-body">
+      <div class="period-tabs" id="dashPeriodTabs">
+        <button type="button" class="period-tab active" data-period="day" onclick="setDashPeriod('day', this)">Daily</button>
+        <button type="button" class="period-tab" data-period="week" onclick="setDashPeriod('week', this)">Weekly</button>
+        <button type="button" class="period-tab" data-period="month" onclick="setDashPeriod('month', this)">Monthly</button>
+        <button type="button" class="period-tab" data-period="year" onclick="setDashPeriod('year', this)">Yearly</button>
+      </div>
+      <div class="kpi-row">
+        <div class="kpi"><span class="kpi-ico"><svg class="ic ic-lg" aria-hidden="true"><use href="#i-trend"/></svg></span>
+          <div class="kpi-label" id="kpiRevenueLabel">Today’s Sales</div>
+          <div class="kpi-value" id="kpiRevenue">₱0</div>
+        </div>
+        <div class="kpi k-blue"><span class="kpi-ico"><svg class="ic ic-lg" aria-hidden="true"><use href="#i-receipt"/></svg></span>
+          <div class="kpi-label">Transactions</div>
+          <div class="kpi-value" id="kpiCount">0</div>
+        </div>
+        <div class="kpi k-amber"><span class="kpi-ico"><svg class="ic ic-lg" aria-hidden="true"><use href="#i-trend"/></svg></span>
+          <div class="kpi-label">Avg Ticket</div>
+          <div class="kpi-value" id="kpiAvg">₱0</div>
+        </div>
+        <div class="kpi warn"><span class="kpi-ico"><svg class="ic ic-lg" aria-hidden="true"><use href="#i-alert"/></svg></span>
+          <div class="kpi-label">Low Stock Items</div>
+          <div class="kpi-value" id="kpiLow">0</div>
+        </div>
+      </div>
+      <div class="dash-grid">
+        <div class="card">
+          <h3 id="chartTitle">Sales trend</h3>
+          <canvas id="salesChart" height="180"></canvas>
+        </div>
+        <div class="card">
+          <h3 id="bestTitle">Best Sellers</h3>
+          <div id="bestSellers" class="best-list"></div>
+        </div>
+        <div class="card wide">
+          <h3>Recent Transactions</h3>
+          <div id="recentSales" class="table-wrap"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TODAY PAGE (all roles) -->
+  <div id="todayScreen" class="screen">
+    <header class="topbar">
+      <div class="brand">
+        <img src="logo.png" alt="" class="brand-logo" />
+        <div>
+          <div class="brand-name">Today’s Results</div>
+          <div class="brand-role">AnneTea BrewTrack</div>
+        </div>
+      </div>
+      <div class="clock" id="clockToday"></div>
+      <div class="top-actions">
+        <button class="tb-btn "  onclick="backToPOSFromToday()" title="POS"><svg class="ic " aria-hidden="true"><use href="#i-back"/></svg><span class="lbl">POS</span></button><button class="tb-btn "  onclick="openSalesHistory()" title="History"><svg class="ic " aria-hidden="true"><use href="#i-history"/></svg><span class="lbl">History</span></button><button class="tb-btn icon theme-btn" onclick="toggleTheme()" title="Toggle light/dark mode" aria-label="Toggle light or dark mode"><svg class="ic ic-sun" aria-hidden="true"><use href="#i-sun"/></svg><svg class="ic ic-moon" aria-hidden="true"><use href="#i-moon"/></svg></button><button class="tb-btn outline"  onclick="doLogout()" title="Logout"><svg class="ic " aria-hidden="true"><use href="#i-logout"/></svg><span class="lbl">Logout</span></button>
+      </div>
+    </header>
+    <div class="dash-body">
+      <div class="kpi-row">
+        <div class="kpi"><span class="kpi-ico"><svg class="ic ic-lg" aria-hidden="true"><use href="#i-trend"/></svg></span>
+          <div class="kpi-label">Sales today</div>
+          <div class="kpi-value" id="todayRevenue">₱0</div>
+        </div>
+        <div class="kpi k-blue"><span class="kpi-ico"><svg class="ic ic-lg" aria-hidden="true"><use href="#i-receipt"/></svg></span>
+          <div class="kpi-label">Transactions</div>
+          <div class="kpi-value" id="todayCount">0</div>
+        </div>
+        <div class="kpi"><span class="kpi-ico"><svg class="ic ic-lg" aria-hidden="true"><use href="#i-cash"/></svg></span>
+          <div class="kpi-label">Cash</div>
+          <div class="kpi-value" id="todayCash">₱0</div>
+        </div>
+        <div class="kpi k-blue"><span class="kpi-ico"><svg class="ic ic-lg" aria-hidden="true"><use href="#i-phone"/></svg></span>
+          <div class="kpi-label">GCash</div>
+          <div class="kpi-value" id="todayGcash">₱0</div>
+        </div>
+      </div>
+      <div class="card wide">
+        <h3>Today’s transactions</h3>
+        <div id="todayTable" class="table-wrap"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MANAGEMENT -->
+  <div id="mgmtScreen" class="screen">
+    <header class="topbar">
+      <div class="brand">
+        <img src="logo.png" alt="" class="brand-logo" />
+        <div>
+          <div class="brand-name">Management</div>
+          <div class="brand-role">Products · Stock · History</div>
+        </div>
+      </div>
+      <div class="clock" id="clock3"></div>
+      <div class="top-actions">
+        <button class="tb-btn "  onclick="backToPOS()" title="POS"><svg class="ic " aria-hidden="true"><use href="#i-back"/></svg><span class="lbl">POS</span></button><button class="tb-btn" data-undo-btn disabled onclick="undoLast()" title="Undo last action (Ctrl+Z)"><svg class="ic " aria-hidden="true"><use href="#i-undo"/></svg><span class="lbl">Undo</span></button><button class="tb-btn "  onclick="openDashboard()" title="Dashboard"><svg class="ic " aria-hidden="true"><use href="#i-dash"/></svg><span class="lbl">Dashboard</span></button><button class="tb-btn icon theme-btn" onclick="toggleTheme()" title="Toggle light/dark mode" aria-label="Toggle light or dark mode"><svg class="ic ic-sun" aria-hidden="true"><use href="#i-sun"/></svg><svg class="ic ic-moon" aria-hidden="true"><use href="#i-moon"/></svg></button><button class="tb-btn outline"  onclick="doLogout()" title="Logout"><svg class="ic " aria-hidden="true"><use href="#i-logout"/></svg><span class="lbl">Logout</span></button>
+      </div>
+    </header>
+    <div class="mgmt-body">
+      <div class="mgmt-tabs">
+        <button class="mgmt-tab active" data-tab="products" data-owner-only="1" onclick="switchMgmtTab(this)">Products</button>
+        <button class="mgmt-tab" data-tab="restock" onclick="switchMgmtTab(this)">Restock</button>
+        <button class="mgmt-tab" data-tab="history" onclick="switchMgmtTab(this)">Stock History</button>
+        <button class="mgmt-tab" data-tab="recipes" data-owner-only="1" onclick="switchMgmtTab(this)">Recipes</button>
+        <button class="mgmt-tab" data-tab="accounts" data-owner-only="1" onclick="switchMgmtTab(this)">Accounts</button>
+      </div>
+      <div id="tab-products" class="mgmt-panel active">
+        <div class="panel-head">
+          <h3>Product Catalog</h3>
+          <button class="btn-sm" onclick="showProductForm()">+ Add Product</button>
+        </div>
+        <div class="history-filters">
+          <select class="input" id="productCatFilter" onchange="productPage=1;renderProductTable()">
+            <option value="all">All categories</option>
+          </select>
+          <input class="input" type="text" id="productSearch" placeholder="Search product…" oninput="productPage=1;renderProductTable()"  />
+        </div>
+        <div id="catManager" class="cat-manager"></div>
+        <div id="productTable" class="table-wrap"></div>
+        <div id="productPager" class="pager"></div>
+      </div>
+      <div id="tab-restock" class="mgmt-panel">
+        <div class="panel-head"><h3>Restock / Adjust Inventory</h3></div>
+        <form id="restockForm" onsubmit="return submitRestock(event)" novalidate>
+          <div class="field"><label for="restockReason">Reason</label>
+            <select id="restockReason"><option value="restock">Delivery (stock received)</option><option value="adjustment">Manual adjustment</option><option value="waste">Waste / spoilage</option></select>
+            <p class="hint-text" id="restockHelp"></p></div>
+          <div class="field"><label for="restockItem">Ingredient <small>(type to search)</small></label>
+            <input type="text" id="restockItem" placeholder="Type to search, e.g. pearl" autocomplete="off" />
+            <p class="hint-text" id="restockCurrent"></p></div>
+          <div class="qty-pair">
+            <div class="field qty-add"><label for="restockAddQty">Add quantity</label>
+              <input type="number" id="restockAddQty" min="0" step="0.01" inputmode="decimal" placeholder="0" /></div>
+            <div class="field qty-remove"><label for="restockRemoveQty">Remove quantity</label>
+              <input type="number" id="restockRemoveQty" min="0" step="0.01" inputmode="decimal" placeholder="0" /></div>
+          </div>
+          <p class="hint-text restock-preview" id="restockPreview"></p>
+          <div class="field" id="restockExpiryWrap"><label for="restockExpiry">Expiration date <b class="req" id="restockExpStar">*</b></label>
+            <input type="date" id="restockExpiry" /></div>
+          <div class="field"><label for="restockNotes">Note <b class="req" id="restockNotesStar" hidden>*</b> <small>(supplier, reason…)</small></label>
+            <input type="text" id="restockNotes" maxlength="120" /></div>
+          <div class="field"><label>Proof photo <small>(optional)</small></label><div id="restockPhotoPicker"></div></div>
+          <p id="restockMsg" class="msg" role="status" hidden></p>
+          <div class="form-actions"><button type="submit" class="btn-primary">Save</button><button type="button" class="modal-close" onclick="clearRestockForm()">Clear</button></div>
+        </form>
+      </div>
+      <div id="tab-history" class="mgmt-panel">
+        <div class="panel-head"><h3>Inventory changes over time</h3></div>
+        <p class="hint-text">Tracks restocks, waste, adjustments, and automatic deductions from sales.</p>
+        <div class="history-filters">
+          <input class="input" type="text" id="stockHistoryFilter" placeholder="Search item, user, notes…" oninput="renderHistory()"  />
+          <select class="input" id="stockHistoryReason" onchange="renderHistory()">
+            <option value="all">All reasons</option>
+            <option value="sale">Sales only</option>
+            <option value="restock">Restock only</option>
+            <option value="adjustment">Adjustments</option>
+            <option value="waste">Waste</option>
+            <option value="void">Voided sales</option>
+          </select>
+        </div>
+        <div id="historyTable" class="table-wrap"></div>
+      </div>
+      <div id="tab-recipes" class="mgmt-panel">
+        <div class="panel-head"><h3>Recipe → Ingredient Mapping</h3></div>
+        <p class="hint-text">Each product has its own recipe. Orders deduct these ingredients, and an item cannot be ordered when one runs out. Edit a recipe with “Edit recipe”.</p>
+        <input class="input" type="search" id="recipeSearch" placeholder="Search product or ingredient…" oninput="renderRecipes()" />
+        <div id="recipeList" class="recipe-cards"></div>
+      </div>
+      <div id="tab-accounts" class="mgmt-panel">
+        <div class="panel-head">
+          <h3>User Accounts</h3>
+          <div style="display:flex;gap:8px">
+            <button class="btn-sm" onclick="openChangePassword()">Change my password</button>
+            <button class="btn-sm" onclick="openIdentityVerification()" title="New accounts require ID + face verification">+ Add Account (verify ID)</button>
+          </div>
+        </div>
+        <div id="accountsTable" class="table-wrap"></div>
+        <div class="panel-head" style="margin-top:22px"><h3>Identity verification records</h3></div>
+        <div id="verifTable" class="table-wrap"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Account form modal -->
+  <div id="accountModal" class="modal">
+    <div class="modal-box">
+      <h3 id="accountModalTitle">Add Account</h3>
+      <form id="accountForm" onsubmit="return saveAccount(event)">
+        <input type="hidden" id="acctEditUser" />
+        <div class="field" style="text-align:left">
+          <label>Username</label>
+          <input type="text" id="acctUsername" required autocomplete="off" />
+        </div>
+        <div class="field" style="text-align:left">
+          <label>Role</label>
+          <select id="acctRole" required>
+            <option value="staff">Staff</option>
+            <option value="co_owner">Co-owner</option>
+            <option value="owner">Owner</option>
+          </select>
+        </div>
+        <div class="field" style="text-align:left">
+          <label for="acctEmail">Gmail address</label>
+          <input type="email" id="acctEmail" placeholder="name@gmail.com" />
+          <p class="hint-text" style="margin-top:4px">Used to verify password reset</p>
+        </div>
+        <div class="field" style="text-align:left">
+          <label id="acctPassLabel">Password</label>
+          <input type="password" id="acctPassword" autocomplete="new-password" minlength="8" maxlength="15" />
+          <p class="hint-text" style="margin-top:4px">8–15 · upper · lower · number · symbol (e.g. Pass@1234)</p>
+        </div>
+        <p id="acctError" class="error-msg" hidden></p>
+        <div style="margin-top:14px">
+          <button type="submit" class="btn-primary">Save</button>
+          <button type="button" class="modal-close" onclick="closeAllModals()">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Product form modal -->
+  <div id="productModal" class="modal">
+    <div class="modal-box large">
+      <h3 id="productModalTitle">Add Product</h3>
+      <form id="productForm" onsubmit="return saveProduct(event)">
+        <input type="hidden" id="prodId" />
+        <div class="field">
+          <label>Name</label>
+          <input type="text" id="prodName" required />
+        </div>
+        <div class="field">
+          <label>Category</label>
+          <select id="prodCat" required></select>
+        </div>
+        <div class="price-row">
+          <div class="field"><label>M</label><input type="number" id="priceM" step="0.01" min="0" /></div>
+          <div class="field"><label>L</label><input type="number" id="priceL" step="0.01" min="0" /></div>
+          <div class="field"><label>1L</label><input type="number" id="priceXL" step="0.01" min="0" /></div>
+          <div class="field"><label>REG</label><input type="number" id="priceREG" step="0.01" min="0" /></div>
+        </div>
+        <label class="check"><input type="checkbox" id="prodStar" /> Best seller</label>
+        <div class="field" style="text-align:left"><label>Recipe — ingredients used per serving</label>
+          <div id="recipeRows"></div>
+          <button type="button" class="btn-sm" onclick="addRecipeRow()">+ Add ingredient</button>
+          <label for="prodOptions" style="display:block;margin-top:12px">Choices when ordering <small>(optional, one per line)</small></label>
+          <textarea id="prodOptions" rows="2" placeholder="Rice: Java Rice, Garlic Rice"></textarea>
+          <p class="hint-text">The cashier picks one from each line; it is taken from stock (1 each).</p>
+          <p class="hint-text">Type to search the inventory, then enter the amount used per cup for each size. If any ingredient runs out, this item (or that size) cannot be ordered.</p></div>
+        <p id="prodError" class="error-msg" hidden></p>
+        <div style="margin-top:16px">
+          <button type="submit" class="btn-primary">Save</button>
+          <button type="button" class="modal-close" onclick="clearProductForm()">Clear</button>
+          <button type="button" class="modal-close" onclick="closeAllModals()">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Size + Sugar modal -->
+  <div id="sizeModal" class="modal">
+    <div class="modal-box" style="max-width:400px">
+      <h3 id="sizeTitle">Choose size</h3>
+      <div class="size-grid" id="sizeGrid"></div>
+      <div id="sugarSection" hidden>
+        <h4 class="option-label">Sugar level</h4>
+        <div class="sugar-grid" id="sugarGrid"></div>
+      </div>
+      <button class="modal-close" onclick="closeAllModals()">Cancel</button>
+    </div>
+  </div>
+
+  <!-- Sugar-only modal (single-size drinks) -->
+  <div id="sugarModal" class="modal">
+    <div class="modal-box" style="max-width:400px">
+      <h3 id="sugarTitle">Sugar level</h3>
+      <div class="sugar-grid" id="sugarGridSolo"></div>
+      <button class="modal-close" onclick="closeAllModals()">Cancel</button>
+    </div>
+  </div>
+
+  <!-- Cash calculator modal (McD-style) -->
+  <div id="cashModal" class="modal">
+    <div class="modal-box cash-box">
+      <h3>Cash Payment</h3>
+      <div class="cash-due">
+        <span>Amount due</span>
+        <strong id="cashDue">₱0.00</strong>
+      </div>
+      <div class="field" style="text-align:left">
+        <label>Customer cash</label>
+        <input type="text" id="cashTendered" readonly inputmode="decimal" placeholder="0.00" />
+      </div>
+      <div class="cash-change-row">
+        <span>Change</span>
+        <strong id="cashChange">₱0.00</strong>
+      </div>
+      <div class="quick-cash" id="cashQuick"><button type="button" data-bill="20">₱20</button><button type="button" data-bill="50">₱50</button><button type="button" data-bill="100">₱100</button><button type="button" data-bill="200">₱200</button><button type="button" data-bill="500">₱500</button><button type="button" data-bill="1000">₱1000</button></div>
+      <div class="numpad" id="cashNumpad">
+        <button type="button" data-k="7">7</button>
+        <button type="button" data-k="8">8</button>
+        <button type="button" data-k="9">9</button>
+        <button type="button" data-k="4">4</button>
+        <button type="button" data-k="5">5</button>
+        <button type="button" data-k="6">6</button>
+        <button type="button" data-k="1">1</button>
+        <button type="button" data-k="2">2</button>
+        <button type="button" data-k="3">3</button>
+        <button type="button" data-k="0">0</button>
+        <button type="button" data-k="00">00</button>
+        <button type="button" data-k=".">.</button>
+        <button type="button" data-k="exact" class="np-exact">Exact</button>
+        <button type="button" data-k="clear" class="np-clear">C</button>
+        <button type="button" data-k="back">⌫</button>
+        <button type="button" data-k="eq" class="np-eq">=</button>
+      </div>
+      <p id="cashError" class="error-msg" hidden></p>
+      <div class="gcash-actions" style="margin-top:12px">
+        <button class="btn-primary" id="cashConfirmBtn" onclick="confirmCashPayment()">Complete Sale</button>
+        <button class="modal-close" onclick="closeAllModals()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Inventory modal -->
+  <div id="invModal" class="modal">
+    <div class="modal-box large inv-modal-box">
+      <h3>Inventory Status</h3>
+      <div class="inv-toolbar">
+        <input type="search" id="invSearch" class="input" placeholder="Search ingredient…" oninput="openInventory()" autocomplete="off" />
+        <button type="button" class="btn-sm" onclick="showAddInventoryItem()">+ Add item</button>
+      </div>
+      <div id="invTable" class="table-wrap inv-scroll"></div>
+      <button class="modal-close" onclick="closeAllModals()" style="margin-top:12px">Close</button>
+    </div>
+  </div>
+
+  <!-- Add inventory item modal -->
+  <div id="invItemModal" class="modal">
+    <div class="modal-box">
+      <h3 id="invItemModalTitle">Add inventory item</h3>
+      <form onsubmit="return saveInventoryItem(event)">
+        <div class="field" style="text-align:left">
+          <label>Item name</label>
+          <input type="hidden" id="invItemOrig" />
+          <input type="text" id="invItemName" required placeholder="e.g. Brown Sugar" autocomplete="off" oninput="invNameHint()" />
+          <p class="hint-text" id="invItemNameHint"></p>
+        </div>
+        <div class="field" style="text-align:left">
+          <label id="invItemQtyLabel">Starting quantity</label>
+          <input type="number" id="invItemQty" step="0.1" min="0" value="0" required />
+          <p class="hint-text" id="invItemQtyHint"></p>
+        </div>
+        <div class="field" style="text-align:left">
+          <label>Expiration date <b class="req" id="invItemExpStar" hidden>*</b></label>
+          <input type="date" id="invItemExpiry" />
+        </div>
+        <div class="field" style="text-align:left">
+          <label for="invItemUnit">Unit <small>(ml, scoop, pcs…)</small></label>
+          <input type="text" id="invItemUnit" maxlength="12" placeholder="e.g. ml" list="unitList" autocomplete="off" />
+          <datalist id="unitList"><option value="ml"><option value="scoop"><option value="pcs"><option value="g"><option value="shot"><option value="sachet"><option value="tsp"><option value="portion"></datalist>
+        </div>
+        <div class="field" style="text-align:left">
+          <label for="invItemMin">Low-stock alert at</label>
+          <input type="number" id="invItemMin" step="0.1" min="0" placeholder="12" />
+          <p class="hint-text">You are warned when stock falls to this amount or below.</p>
+        </div>
+        <p id="invItemError" class="error-msg" hidden></p>
+        <div style="margin-top:14px">
+          <button type="submit" class="btn-primary">Save</button>
+          <button type="button" class="modal-close" onclick="clearInvItemForm()">Clear</button>
+          <button type="button" class="modal-close" onclick="document.getElementById('invItemModal').classList.remove('show')">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- GCash payment modal -->
+  <div id="gcashModal" class="modal">
+    <div class="modal-box gcash-box">
+      <div class="gcash-header">
+        <span class="gcash-logo">GCash</span>
+        <span style="font-weight:600;font-size:1rem">Pay with GCash</span>
+      </div>
+      <div class="gcash-amount" id="gcashAmount">₱0.00</div>
+      <p class="gcash-hint">Enter the customer’s GCash reference number. It must be exactly 13 digits.</p>
+      <div class="field" style="text-align:left;margin:14px 0">
+        <label for="gcashRefInput">GCash Reference No.</label>
+        <input type="text" id="gcashRefInput" placeholder="13 digits only" maxlength="13" inputmode="numeric" autocomplete="off" />
+      </div>
+      <div class="field" style="text-align:left;margin:0 0 14px">
+        <label>GCash transaction photo <small>(optional)</small></label>
+        <div id="gcashPhotoPicker"></div>
+        <p class="hint-text" style="margin-top:4px;margin-bottom:0">Choose a screenshot file or open the camera · max 5MB</p>
+      </div>
+      <div class="gcash-actions">
+        <button class="btn-primary" id="gcashConfirmBtn" onclick="confirmGCashPayment()">Confirm Payment</button>
+        <button class="modal-close" onclick="cancelGCash()">Cancel</button>
+      </div>
+      <div class="gcash-status waiting" id="gcashStatus"></div>
+    </div>
+  </div>
+
+  <!-- Forgot password modal (Gmail verify) -->
+  <div id="forgotModal" class="modal">
+    <div class="modal-box">
+      <h3>Reset Password</h3>
+      <p class="hint-text" style="margin-bottom:14px">We will email a 6-digit code to the email address registered on your account. Enter it here, then choose a new password.</p>
+
+      <div id="forgotStep1">
+        <div class="field" style="text-align:left">
+          <label for="forgotUser">Username</label>
+          <input type="text" id="forgotUser" autocomplete="username" />
+        </div>
+        <p id="forgotError" class="error-msg" hidden></p>
+        <div style="margin-top:14px">
+          <p id="forgotSetupWarn" class="error-msg" hidden></p>
+          <button class="btn-primary" id="forgotSendBtn" onclick="sendResetCode()">Email me a code</button>
+          <button class="modal-close" onclick="closeAllModals()">Cancel</button>
+        </div>
+      </div>
+
+      <div id="forgotStep2" hidden>
+        <p class="hint-text" id="forgotCodeHint" style="margin-bottom:10px"></p>
+        <div class="field" style="text-align:left">
+          <label for="forgotCode">Verification code</label>
+          <input type="text" id="forgotCode" maxlength="6" inputmode="numeric" placeholder="6-digit code" />
+        </div>
+        <div class="field" style="text-align:left">
+          <label for="forgotNew">New password</label>
+          <input type="password" id="forgotNew" autocomplete="new-password" minlength="8" maxlength="15" />
+        </div>
+        <div class="field" style="text-align:left">
+          <label for="forgotConfirm">Confirm new password</label>
+          <input type="password" id="forgotConfirm" autocomplete="new-password" minlength="8" maxlength="15" />
+        </div>
+        <p class="hint-text">8–15 chars · uppercase · lowercase · number · symbol (e.g. Annetea@1)</p>
+        <p id="forgotError2" class="error-msg" hidden></p>
+        <div style="margin-top:14px">
+          <button class="btn-primary" onclick="submitForgotPassword()">Reset Password</button>
+          <button type="button" class="modal-close" onclick="openForgotPassword()">Back</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Expiry notification banner -->
+  <div id="expiryBanner" class="expiry-banner" hidden role="alert" onclick="goToExpiringProducts(event)">
+    <span class="banner-icon" aria-hidden="true">📅</span>
+    <span class="banner-msg" id="expiryBannerText">Products expiring soon</span>
+    <button type="button" class="banner-cta" onclick="event.stopPropagation(); goToExpiringProducts(event)">View</button>
+    <button type="button" class="banner-close" onclick="event.stopPropagation(); dismissExpiryBanner()" title="Dismiss" aria-label="Dismiss">×</button>
+  </div>
+
+  <!-- Low stock notification banner -->
+  <div id="lowStockBanner" class="low-stock-banner" hidden role="alert" onclick="goToLowStock(event)">
+    <span class="banner-icon" aria-hidden="true">⚠</span>
+    <span class="banner-msg" id="lowStockBannerText">Low stock alert</span>
+    <button type="button" class="banner-cta" onclick="event.stopPropagation(); goToLowStock(event)">Fix now</button>
+    <button type="button" class="banner-close" onclick="event.stopPropagation(); dismissLowStockBanner()" title="Dismiss">×</button>
+  </div>
+
+  <!-- Receipt modal -->
+  <div id="receiptModal" class="modal">
+    <div class="modal-box receipt-box dual-receipt">
+      <div class="receipt-tabs">
+        <button type="button" class="receipt-tab active" data-rcpt="customer" onclick="switchReceiptTab('customer', this)">Customer</button>
+        <button type="button" class="receipt-tab" data-rcpt="kitchen" onclick="switchReceiptTab('kitchen', this)">Staff / Chef</button>
+      </div>
+      <div id="receiptPaper" class="receipt-paper"></div>
+      <div id="receiptPaperKitchen" class="receipt-paper" hidden></div>
+      <div class="receipt-actions">
+        <button class="btn-primary" onclick="printBothReceipts()">Print both</button>
+        <button class="btn-primary" onclick="window.print()">Print current</button>
+        <button class="modal-close" onclick="closeAllModals()">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Change own password (admin) -->
+  <div id="changePassModal" class="modal">
+    <div class="modal-box">
+      <h3>Change my password</h3>
+      <div class="field" style="text-align:left">
+        <label>Current password</label>
+        <input type="password" id="chgPassCurrent" />
+      </div>
+      <div class="field" style="text-align:left">
+        <label>New password</label>
+        <input type="password" id="chgPassNew" minlength="8" maxlength="15" />
+      </div>
+      <div class="field" style="text-align:left">
+        <label>Confirm new password</label>
+        <input type="password" id="chgPassConfirm" minlength="8" maxlength="15" />
+      </div>
+      <p class="hint-text">8–15 chars with uppercase, lowercase, number, and special symbol.</p>
+      <p id="chgPassError" class="error-msg" hidden></p>
+      <div style="margin-top:14px">
+        <button class="btn-primary" onclick="submitChangePassword()">Save</button>
+        <button class="modal-close" onclick="closeAllModals()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+    <!-- Sales / payment history (all roles) -->
+  <div id="salesHistoryModal" class="modal">
+    <div class="modal-box large" style="max-width:640px;text-align:left">
+      <h3 style="text-align:center">Payment & Receipt History</h3>
+      <div class="field" style="margin-bottom:10px">
+        <input type="text" id="salesHistoryFilter" placeholder="Search ref, method, cashier…" oninput="renderSalesHistory()" />
+      </div>
+      <div id="salesHistoryTable" class="table-wrap" style="max-height:420px;overflow:auto"></div>
+      <div style="margin-top:14px;text-align:center">
+        <button class="modal-close" onclick="closeAllModals()">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Identity verification dialog (ID Upload → ID Scan → Face Capture → Face Match → Personal Info → Result) -->
+  <div id="idvModal" class="modal" role="dialog" aria-modal="true" aria-label="Identity verification">
+    <div class="modal-box idv-box"><div id="idvRoot"></div></div>
+  </div>
+
+  <!-- My identity: face sign-in choice, delete own verified ID -->
+  <div id="myIdModal" class="modal" role="dialog" aria-modal="true" aria-label="My identity">
+    <div class="modal-box" style="text-align:left;max-width:460px">
+      <h3>My ID &amp; face login</h3>
+      <div id="myIdBody"></div>
+      <div style="margin-top:14px;text-align:center"><button class="modal-close" onclick="closeAllModals()">Close</button></div>
+    </div>
+  </div>
+
+  <script src="shop-key.js"></script>
+  <script src="menu-seed.js"></script>
+  <script src="app.js"></script>
+  <script src="idv-parser.js"></script>
+  <script src="idv.js"></script>
+  <script src="face-auth.js"></script>
+  <script src="stock-menu.js"></script>
+</body>
+</html>
