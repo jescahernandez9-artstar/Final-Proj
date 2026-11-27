@@ -49,6 +49,7 @@ DEFAULT = {
     "sales": [],
     "inventory": None,
     "stock_logs": [],
+    "stock_logs_removed": [],
     "accounts": None,
     "catalog": None,
     "ingredient_expiry": {},
@@ -130,6 +131,33 @@ def save_data(data):
             json.dump(data, f, indent=2, ensure_ascii=False)
         os.replace(tmp, DATA_FILE)
 
+def merge_stock_logs(db, incoming, removed):
+    """Stock history is merged by entry id, never replaced as a whole list.
+    So a device that sends an older copy (or saves a moment too early) cannot erase
+    restocks saved by another device. Undone entries come in 'removed' and stay removed."""
+    tomb = [str(x) for x in (db.get('stock_logs_removed') or [])]
+    tset = set(tomb)
+    for r in (removed or []):
+        if str(r) not in tset:
+            tomb.append(str(r)); tset.add(str(r))
+    db['stock_logs_removed'] = tomb[-2000:]
+    tset = set(db['stock_logs_removed'])
+    by_id = {}
+    for l in (db.get('stock_logs') or []):
+        if isinstance(l, dict):
+            by_id[str(l.get('id'))] = l
+    for l in (incoming or []):
+        if not isinstance(l, dict):
+            continue
+        k = str(l.get('id'))
+        old = by_id.get(k)
+        if old and old.get('photo') and not l.get('photo'):   # a device whose storage was full sends it without the photo
+            l = dict(l, photo=old['photo'])
+        by_id[k] = l
+    logs = [l for k, l in by_id.items() if k not in tset]
+    logs.sort(key=lambda l: str(l.get('time') or ''), reverse=True)
+    db['stock_logs'] = logs[:500]
+
 # ---------------------------------------------------------------------------
 # Only the app's own page files are served. server.py, .env, shared_data.json, schema.sql, php/ ... are never sent.
 # ---------------------------------------------------------------------------
@@ -180,7 +208,9 @@ def post_state():
     """Merge client keys into shared store"""
     body = request.json or {}
     db = load_data()
-    for key in ('sales', 'inventory', 'stock_logs', 'accounts',
+    if isinstance(body.get('stock_logs'), list) or isinstance(body.get('stock_logs_removed'), list):
+        merge_stock_logs(db, body.get('stock_logs'), body.get('stock_logs_removed'))
+    for key in ('sales', 'inventory', 'accounts',
                 'ingredient_expiry', 'ingredient_min', 'ingredient_unit', 'product_expiry', 'custom_products'):
         if key in body and body[key] is not None:
             db[key] = body[key]
@@ -398,8 +428,8 @@ def inventory_api():
             db['ingredient_min'] = body['ingredient_min']
         if isinstance(body.get('ingredient_unit'), dict):
             db['ingredient_unit'] = body['ingredient_unit']
-        if isinstance(body.get('stock_logs'), list):
-            db['stock_logs'] = body['stock_logs']
+        if isinstance(body.get('stock_logs'), list) or isinstance(body.get('stock_logs_removed'), list):
+            merge_stock_logs(db, body.get('stock_logs'), body.get('stock_logs_removed'))
         save_data(db)
         return jsonify({"ok": True})
     return jsonify({
@@ -407,7 +437,8 @@ def inventory_api():
         "ingredient_expiry": db.get('ingredient_expiry', {}),
         "ingredient_min": db.get('ingredient_min', {}),
         "ingredient_unit": db.get('ingredient_unit', {}),
-        "stock_logs": db.get('stock_logs', [])
+        "stock_logs": db.get('stock_logs', []),
+        "stock_logs_removed": db.get('stock_logs_removed', [])
     })
 
 @app.after_request

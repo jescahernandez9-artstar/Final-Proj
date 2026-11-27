@@ -247,7 +247,7 @@ const MENU = JSON.parse(JSON.stringify(CATALOG_SEED.menu));
 // Inventory
 let inventory = JSON.parse(localStorage.getItem('at_inventory') || 'null') ||
   Object.fromEntries(Object.entries(INGREDIENT_SEED).map(([n, x]) => [n, x.start]));   // demo starting stock — set real counts with Restock
-const MIN_STOCK = 12;   // default low-stock level; each ingredient can have its own (Stock → Edit)
+const MIN_STOCK = 12;   // default low-stock level; each ingredient can have its own (Inventory → Edit)
 
 function saveInventory() {
   localStorage.setItem('at_inventory', JSON.stringify(inventory));
@@ -498,7 +498,8 @@ function logStockChange(ingredient, change, reason, notes, extra) {
   if (session) log.user = session.username || session.name || 'user';
   stockLogs.unshift(log);
   if (stockLogs.length > 500) stockLogs.length = 500;
-  localStorage.setItem('at_stock_logs', JSON.stringify(stockLogs));
+  stockLogsPending.add(String(log.id));   // stays marked until the server confirms it has it
+  stockLogsChanged();
 }
 
 
@@ -939,6 +940,63 @@ document.addEventListener('DOMContentLoaded', () => {
 // ============================================================
 
 let stockLogs = JSON.parse(localStorage.getItem('at_stock_logs') || '[]');
+
+// ---------- STOCK HISTORY SAVING ----------
+// Each history entry is sent to the server right after it is written. Entries the server has not
+// confirmed yet are remembered ("pending"), so a refresh from the server (every 15 s, or when the app
+// is opened again) can never wipe a restock that was just saved. Undone entries are sent as "removed".
+function lsGetJson(key, fallback) {
+  try { const v = JSON.parse(localStorage.getItem(key) || 'null'); return v == null ? fallback : v; } catch (e) { return fallback; }
+}
+let stockLogsPending = new Set(lsGetJson('at_stock_logs_pending', []).map(String));
+let stockLogsRemoved = new Set(lsGetJson('at_stock_logs_removed', []).map(String));
+let _stockPushTimer = null;
+
+function saveStockLogsLocal() {
+  try { localStorage.setItem('at_stock_logs', JSON.stringify(stockLogs)); }
+  catch (e) {   // browser storage full (restock photos are big): keep this device's copy without photos; the server keeps them
+    try { localStorage.setItem('at_stock_logs', JSON.stringify(stockLogs.map((l) => (l.photo ? Object.assign({}, l, { photo: null }) : l)))); } catch (e2) {}
+  }
+  try {
+    localStorage.setItem('at_stock_logs_pending', JSON.stringify([...stockLogsPending]));
+    localStorage.setItem('at_stock_logs_removed', JSON.stringify([...stockLogsRemoved]));
+  } catch (e) {}
+}
+// Call after any change to stockLogs: saves on this device now and sends to the server a moment later
+function stockLogsChanged() {
+  saveStockLogsLocal();
+  clearTimeout(_stockPushTimer);
+  _stockPushTimer = setTimeout(() => { if (typeof pushInventoryToServer === 'function') pushInventoryToServer(); }, 300);
+}
+function removeStockLog(id) {
+  const k = String(id);
+  stockLogs = stockLogs.filter((l) => String(l.id) !== k);
+  stockLogsPending.delete(k); stockLogsRemoved.add(k);
+  stockLogsChanged();
+}
+// What is sent to the server, and what to forget once the server said OK
+function stockLogPayload() {
+  return { stock_logs: stockLogs, stock_logs_removed: [...stockLogsRemoved],
+           _sent: new Set(stockLogs.map((l) => String(l.id))), _removed: [...stockLogsRemoved] };
+}
+function stockLogsSynced(p) {
+  p._sent.forEach((k) => stockLogsPending.delete(k));
+  p._removed.forEach((k) => stockLogsRemoved.delete(k));
+  saveStockLogsLocal();
+}
+// Server list + this device's entries the server does not have yet (newest first)
+function mergeServerStockLogs(serverLogs, serverRemoved) {
+  const gone = new Set((serverRemoved || []).map(String));
+  const onServer = new Set(serverLogs.map((l) => String(l.id)));
+  stockLogsPending.forEach((k) => { if (onServer.has(k) || gone.has(k)) stockLogsPending.delete(k); });
+  const localPhoto = {}; stockLogs.forEach((l) => { if (l.photo) localPhoto[String(l.id)] = l.photo; });
+  const waiting = stockLogs.filter((l) => stockLogsPending.has(String(l.id)));
+  const fromServer = serverLogs.filter((l) => !stockLogsRemoved.has(String(l.id)) && !gone.has(String(l.id)))
+    .map((l) => (!l.photo && localPhoto[String(l.id)] ? Object.assign({}, l, { photo: localPhoto[String(l.id)] }) : l));
+  stockLogs = waiting.concat(fromServer).sort((a, b) => String(b.time || '').localeCompare(String(a.time || ''))).slice(0, 500);
+  saveStockLogsLocal();
+  return waiting.length > 0 || stockLogsRemoved.size > 0;   // true: something still has to be sent
+}
 
 function openManagement() {
   document.getElementById('posScreen').classList.remove('active');
@@ -1410,10 +1468,10 @@ function updateStockButtons(lowCount) {
     if (lowCount > 0) {
       if (!badge) { badge = document.createElement('span'); badge.className = 'badge'; btn.appendChild(badge); }
       badge.textContent = lowCount;
-      btn.title = 'Stock · ' + lowCount + ' item(s) low';
+      btn.title = 'Inventory · ' + lowCount + ' item(s) low';
     } else {
       if (badge) badge.remove();
-      btn.title = 'Stock';
+      btn.title = 'Inventory';
     }
   });
 }
@@ -1831,8 +1889,8 @@ async function pullSharedState() {
       saveInventory();
     }
     if (Array.isArray(data.stock_logs)) {
-      stockLogs = data.stock_logs;
-      localStorage.setItem('at_stock_logs', JSON.stringify(stockLogs));
+      if (mergeServerStockLogs(data.stock_logs, data.stock_logs_removed)) stockLogsChanged();
+      if (typeof renderHistory === 'function' && document.getElementById('historyTable')) renderHistory();
     }
     if (data.ingredient_expiry) {
       localStorage.setItem('at_ingredient_expiry', JSON.stringify(data.ingredient_expiry));
@@ -1872,8 +1930,9 @@ async function pushSaleToServer(sale) {
 
 async function pushInventoryToServer() {
   if (!API_BASE || !sharedMode) return;
+  const logs = stockLogPayload();
   try {
-    await fetch(API_BASE + '/api/inventory', {
+    const res = await fetch(API_BASE + '/api/inventory', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -1881,22 +1940,26 @@ async function pushInventoryToServer() {
         ingredient_expiry: getIngredientExpiryMap(),
         ingredient_min: typeof getMinMap === 'function' ? getMinMap() : {},
         ingredient_unit: typeof getUnitMap === 'function' ? getUnitMap() : {},
-        stock_logs: typeof stockLogs !== 'undefined' ? stockLogs : []
+        stock_logs: logs.stock_logs,
+        stock_logs_removed: logs.stock_logs_removed
       })
     });
+    if (res.ok) stockLogsSynced(logs);
   } catch (e) {}
 }
 
 async function pushFullState() {
   if (!API_BASE || !sharedMode) return;
+  const logs = stockLogPayload();
   try {
-    await fetch(API_BASE + '/api/state', {
+    const res = await fetch(API_BASE + '/api/state', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         sales: getSalesList(),
         inventory,
-        stock_logs: typeof stockLogs !== 'undefined' ? stockLogs : [],
+        stock_logs: logs.stock_logs,
+        stock_logs_removed: logs.stock_logs_removed,
         accounts: JSON.parse(localStorage.getItem('at_accounts') || '{}'),
         verifications: JSON.parse(localStorage.getItem('at_verifications') || '[]'),
         catalog: typeof catalogSnapshot === 'function' ? catalogSnapshot() : null,
@@ -1905,6 +1968,7 @@ async function pushFullState() {
         ingredient_unit: typeof getUnitMap === 'function' ? getUnitMap() : {}
       })
     });
+    if (res.ok) stockLogsSynced(logs);
   } catch (e) {}
 }
 

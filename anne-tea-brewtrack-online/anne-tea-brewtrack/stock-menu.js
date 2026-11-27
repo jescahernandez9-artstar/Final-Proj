@@ -22,7 +22,7 @@ function resolveIngredient(text) {
   return Object.keys(inventory).find((n) => ingKey(n) === k) || null;
 }
 
-// Low-stock level per ingredient (saved, editable in Stock → Edit). Falls back to MIN_STOCK.
+// Low-stock level per ingredient (saved, editable in Inventory → Edit). Falls back to MIN_STOCK.
 function getMinMap() { try { return JSON.parse(localStorage.getItem('at_ingredient_min') || '{}') || {}; } catch (e) { return {}; } }
 function minFor(name) { const v = getMinMap()[name]; return v != null && v >= 0 ? v : MIN_STOCK; }
 function setMinFor(name, v) { const m = getMinMap(); if (v == null || v === '' || isNaN(v)) delete m[name]; else m[name] = fmtQty(v); localStorage.setItem('at_ingredient_min', JSON.stringify(m)); }
@@ -501,7 +501,7 @@ function renameIngredient(from, to) {
   let touched = false; getAllProductsFlat().forEach((p) => { if (p.recipe && p.recipe[from] != null) { const m = MENU[p.category].find((x) => x.id === p.id); m.recipe[to] = m.recipe[from]; delete m.recipe[from]; touched = true; } });
   getAllProductsFlat().forEach((p) => { (p.options || []).forEach((g, gi) => { if (g.choices.includes(from)) { const m = MENU[p.category].find((x) => x.id === p.id); m.options[gi].choices = g.choices.map((c) => (c === from ? to : c)); touched = true; } }); });
   if (touched) saveCatalog();
-  stockLogs.forEach((l) => { if (l.ingredient === from) l.ingredient = to; }); localStorage.setItem('at_stock_logs', JSON.stringify(stockLogs));
+  stockLogs.forEach((l) => { if (l.ingredient === from) l.ingredient = to; }); stockLogsChanged();
 }
 
 function saveInventoryItem(e) {
@@ -522,7 +522,7 @@ function saveInventoryItem(e) {
     inventory[name] = fmtQty(qty); setIngredientExpiry(name, expiry); setMinFor(name, min); setUnitFor(name, unit); saveInventory();
     if (qty > 0) logStockChange(name, qty, 'restock', 'New item added', { expiry });
     toast('“' + name + '” added to inventory', 'ok', { label: 'Undo', action: () => {
-      if (usedByRecipes(name).length) { toast('“' + name + '” is now used in a recipe — remove it from Stock instead', 'err'); return; }
+      if (usedByRecipes(name).length) { toast('“' + name + '” is now used in a recipe — remove it from Inventory instead', 'err'); return; }
       delete inventory[name]; setIngredientExpiry(name, null); setMinFor(name, null); setUnitFor(name, ''); saveInventory(); afterInventoryChange(); } });
   } else {
     const before = { name: orig, expiry: getIngredientExpiryMap()[orig] || null, min: getMinMap()[orig], unit: unitOf(orig) };
@@ -620,7 +620,7 @@ async function submitRestock(e) {
   const msg = byId('restockMsg'), fail = (t) => { msg.textContent = t; msg.className = 'msg err'; msg.hidden = false; return false; };
   const typed = cleanName(byId('restockItem').value), item = resolveIngredient(typed);
   if (!typed) return fail('Type or pick an ingredient.');
-  if (!item) return fail('“' + typed + '” is not in the inventory. Add it first (Stock → + Add item) so there are no duplicates.');
+  if (!item) return fail('“' + typed + '” is not in the inventory. Add it first (Inventory → + Add item) so there are no duplicates.');
   const { reason, dir, add, remove, delta } = restockMode();
   const notes = cleanName(byId('restockNotes').value), expiry = byId('restockExpiry').value || null;
   if (reason === 'waste' && parseFloat(byId('restockAddQty').value) > 0) return fail('Waste can only remove stock. Use the Remove quantity box.');
@@ -644,8 +644,7 @@ async function submitRestock(e) {
     if (!(item in inventory)) { toast('“' + item + '” was removed from the inventory', 'err'); return; }
     inventory[item] = Math.max(0, fmtQty(inventory[item] - delta));   // reverse only this change (sales made since are kept)
     setIngredientExpiry(item, prevExp); saveInventory();
-    stockLogs = stockLogs.filter((l) => l.id !== logId); localStorage.setItem('at_stock_logs', JSON.stringify(stockLogs));
-    if (typeof pushInventoryToServer === 'function') pushInventoryToServer();
+    removeStockLog(logId);
     afterInventoryChange(); if (typeof renderHistory === 'function') renderHistory(); toast('Change undone', 'info'); } });
   if (typeof renderHistory === 'function') renderHistory();
   return false;
