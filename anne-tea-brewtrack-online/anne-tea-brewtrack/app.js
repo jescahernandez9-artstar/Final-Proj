@@ -247,7 +247,7 @@ const MENU = JSON.parse(JSON.stringify(CATALOG_SEED.menu));
 // Inventory
 let inventory = JSON.parse(localStorage.getItem('at_inventory') || 'null') ||
   Object.fromEntries(Object.entries(INGREDIENT_SEED).map(([n, x]) => [n, x.start]));   // demo starting stock — set real counts with Restock
-const MIN_STOCK = 12;   // default low-stock level; each ingredient can have its own (Inventory → Edit)
+const MIN_STOCK = 20;   // default low-stock level (never below 20); each ingredient can have a higher one (Inventory → Edit)
 
 function saveInventory() {
   localStorage.setItem('at_inventory', JSON.stringify(inventory));
@@ -1196,9 +1196,10 @@ async function sendResetCode() {
   const err = document.getElementById('forgotError');
   const btn = document.getElementById('forgotSendBtn');
   err.hidden = true;
-  const user = document.getElementById('forgotUser').value.trim().toLowerCase();
+  const user = document.getElementById('forgotUser').value.trim().toLowerCase();   // username OR registered Gmail
   const fail = (m) => { err.textContent = m; err.hidden = false; };
-  if (!user) return fail('Enter your username.');
+  if (!user) return fail('Enter your username or your Gmail address.');
+  if (user.includes('@') && !isValidGmail(user)) return fail('Type the full Gmail address saved on your account (name@gmail.com), or your username.');
   if (!API_BASE) return fail('Email codes need the server. Start server.py and open the site through it (see README), not by double-clicking index.html.');
   btn.disabled = true;
   try {
@@ -1213,7 +1214,9 @@ async function sendResetCode() {
     document.getElementById('forgotStep2').hidden = false;
     document.getElementById('forgotError2').hidden = true;
     document.getElementById('forgotCodeHint').textContent =
-      'If “' + user + '” has a registered email address, a 6-digit code was just sent to it. Check your inbox (and spam). The code is valid for 10 minutes.';
+      (user.includes('@')
+        ? 'If “' + user + '” is the Gmail saved on an account, a 6-digit code was just sent to it (the email also shows the username). '
+        : 'If “' + user + '” has a registered Gmail address, a 6-digit code was just sent to it. ') + 'Check your inbox (and spam). The code is valid for 10 minutes.';
     toast('Check your registered email for the code', 'ok');
   } catch (e) {
     fail('Cannot reach the server. Make sure server.py is running.');
@@ -1252,9 +1255,10 @@ async function submitForgotPassword() {
 }
 
 // ---------- ACCOUNT STORAGE (owner management) ----------
+const OWNER_EMAIL = 'jescahernandez9@gmail.com';
 function defaultAccounts() {
   return {
-    owner:  { pass: 'f981d29e764c7051b2e6dfa7a11e5801e471cf532f76d348aeafde1e2eb9af2c', role: 'owner',  name: 'Owner', email: 'owner.annetea@gmail.com' },
+    owner:  { pass: 'f981d29e764c7051b2e6dfa7a11e5801e471cf532f76d348aeafde1e2eb9af2c', role: 'owner',  name: 'Owner', email: OWNER_EMAIL },
     coowner:{ pass: 'f981d29e764c7051b2e6dfa7a11e5801e471cf532f76d348aeafde1e2eb9af2c', role: 'co_owner', name: 'Co-owner', email: 'coowner.annetea@gmail.com' },
     staff:  { pass: 'f981d29e764c7051b2e6dfa7a11e5801e471cf532f76d348aeafde1e2eb9af2c', role: 'staff',  name: 'Staff', email: 'staff.annetea@gmail.com' }
   };
@@ -1291,6 +1295,11 @@ function loadAccounts() {
       changed = true;
     }
   });
+  // v9: the owner account's Gmail moved from the old placeholder to the real one
+  if (accounts.owner && (!accounts.owner.email || accounts.owner.email === 'owner.annetea@gmail.com')) {
+    accounts.owner.email = OWNER_EMAIL;
+    changed = true;
+  }
 
   if (changed || !localStorage.getItem('at_accounts')) {
     localStorage.setItem('at_accounts', JSON.stringify(accounts));
@@ -1461,14 +1470,15 @@ const _origSwitchMgmt = typeof switchMgmtTab === 'function' ? switchMgmtTab : nu
 // ---------- LOW STOCK NOTIFICATIONS ----------
 let lowStockDismissed = false;
 
-function updateStockButtons(lowCount) {
+function updateStockButtons(lowCount, outCount) {
   document.querySelectorAll('[data-stock-btn]').forEach(btn => {
     let badge = btn.querySelector('.badge');
     btn.classList.toggle('stock-alert', lowCount > 0);
+    btn.classList.toggle('stock-out', (outCount || 0) > 0);
     if (lowCount > 0) {
       if (!badge) { badge = document.createElement('span'); badge.className = 'badge'; btn.appendChild(badge); }
       badge.textContent = lowCount;
-      btn.title = 'Inventory · ' + lowCount + ' item(s) low';
+      btn.title = 'Inventory · ' + (outCount ? outCount + ' out of stock, ' : '') + (lowCount - (outCount || 0)) + ' low';
     } else {
       if (badge) badge.remove();
       btn.title = 'Inventory';

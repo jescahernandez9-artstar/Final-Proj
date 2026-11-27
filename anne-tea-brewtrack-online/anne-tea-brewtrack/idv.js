@@ -450,11 +450,12 @@
       <div class="idv-pills">
         <span class="pill" id="pillFace">Entire face visible</span>
         <span class="pill" id="pillLight">Proper lighting</span>
+        <span class="pill" id="pillClear">No glasses / mask</span>
       </div>
       <ol class="idv-capsteps" id="idvCapList">
         ${CAPTURE_STEPS.map((c, i) => `<li id="cap-${c.key}" class="${i === 0 ? 'now' : ''}"><span class="ci">${i + 1}</span>${c.text}</li>`).join('')}
       </ol>
-      <p class="hint-text">Follow the instructions one at a time. Make sure your entire face is visible and the room is well lit. Capture happens automatically.</p>
+      <p class="hint-text">Follow the instructions one at a time. <b>Remove eyeglasses, sunglasses, face mask, cap or anything covering your face</b> — the scan will not continue while your face is covered. Make sure the room is well lit. Capture happens automatically.</p>
       <button type="button" class="btn-sm idv-force" id="idvForce" hidden>Capture this step anyway</button>
       <p id="idvCamErr" class="error-msg" role="alert" hidden></p>
       <div class="idv-actions">
@@ -534,6 +535,78 @@
     return { ok: true };
   }
 
+  // ---------------------------------------------------------------------
+  // OBSTRUCTION CHECK — eyeglasses, sunglasses, face mask (v9)
+  // face-api.js has no "glasses" model, so this looks at the pixels around the 68 face landmarks:
+  //   • glasses: a thin line across the nose bridge between the eyes, or a frame edge under the eyes
+  //   • sunglasses: the eye area is much darker than the cheeks
+  //   • mask / cloth: the chin, mouth and cheeks are a different colour from the forehead and nose top
+  // Best effort: thick or dark frames, sunglasses and masks are caught reliably; very thin rimless glasses may pass.
+  // ---------------------------------------------------------------------
+  const obCanvas = document.createElement('canvas');
+  function obstruction(src, landmarks) {
+    const P = landmarks.positions || landmarks;
+    const avg = (ids) => ids.reduce((a, i) => ({ x: a.x + P[i].x / ids.length, y: a.y + P[i].y / ids.length }), { x: 0, y: 0 });
+    const eL = avg([36, 37, 38, 39, 40, 41]), eR = avg([42, 43, 44, 45, 46, 47]);
+    const d0 = Math.hypot(eR.x - eL.x, eR.y - eL.y); if (d0 < 20) return null;   // face too small to judge
+    // level the eyes and scale the face so the eyes are 64 px apart
+    const W = 256, H = 256, d = 64, EY = 96, S = d / d0, ang = Math.atan2(eR.y - eL.y, eR.x - eL.x), cx = (eL.x + eR.x) / 2, cy = (eL.y + eR.y) / 2;
+    const c = Math.cos(-ang), sn = Math.sin(-ang);
+    const Q = P.map((p) => { const dx = p.x - cx, dy = p.y - cy; return { x: (dx * c - dy * sn) * S + W / 2, y: (dx * sn + dy * c) * S + EY }; });
+    obCanvas.width = W; obCanvas.height = H;
+    const g = obCanvas.getContext('2d', { willReadFrequently: true });
+    g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, W, H);
+    g.translate(W / 2, EY); g.scale(S, S); g.rotate(-ang); g.translate(-cx, -cy); g.drawImage(src, 0, 0);
+    const px = g.getImageData(0, 0, W, H).data, N = W * H;
+    const Y = new Float32Array(N), CB = new Float32Array(N), CR = new Float32Array(N);
+    for (let i = 0; i < N; i++) { const r = px[i * 4], gg = px[i * 4 + 1], b = px[i * 4 + 2]; Y[i] = 0.299 * r + 0.587 * gg + 0.114 * b; CB[i] = 128 - 0.1687 * r - 0.3313 * gg + 0.5 * b; CR[i] = 128 + 0.5 * r - 0.4187 * gg - 0.0813 * b; }
+    const R = (x0, y0, x1, y1) => [Math.max(1, Math.round(Math.min(x0, x1))), Math.max(1, Math.round(Math.min(y0, y1))), Math.min(W - 2, Math.round(Math.max(x0, x1))), Math.min(H - 2, Math.round(Math.max(y0, y1)))];
+    const mean = (A, r) => { const [x0, y0, x1, y1] = R(...r); let t = 0, n = 0; for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) { t += A[y * W + x]; n++; } return n ? t / n : 0; };
+    const rowsOf = (r) => { const [x0, y0, x1, y1] = R(...r), rows = []; for (let y = y0; y <= y1; y++) { let t = 0; for (let x = x0; x <= x1; x++) t += Y[y * W + x]; rows.push(t / (x1 - x0 + 1)); } return rows; };
+    const rowLine = (r) => { const rows = rowsOf(r); let m = 0; for (let i = 3; i < rows.length - 3; i++) for (const k of [2, 3]) m = Math.max(m, Math.abs(rows[i] - (rows[i - k] + rows[i + k]) / 2)); return m / Math.max(30, mean(Y, r)); };
+    const rowEdge = (r) => { const rows = rowsOf(r); let m = 0; for (let i = 3; i < rows.length; i++) m = Math.max(m, Math.abs(rows[i] - rows[i - 3])); return m / Math.max(30, mean(Y, r)); };
+    const colLine = (r) => {
+      const [x0, y0, x1, y1] = R(...r), vals = [];
+      for (let x = x0 + 1; x < x1; x++) { let m = 0; const v = (q) => (Y[q * W + x - 1] + Y[q * W + x] + Y[q * W + x + 1]) / 3; for (let y = y0 + 3; y <= y1 - 3; y++) for (const k of [2, 3]) m = Math.max(m, Math.abs(v(y) - (v(y - k) + v(y + k)) / 2)); vals.push(m); }
+      vals.sort((a, b) => a - b); return (vals[Math.floor(vals.length / 2)] || 0) / Math.max(30, mean(Y, r));
+    };
+    const gap = Q[42].x - Q[39].x, lowL = Math.max(Q[40].y, Q[41].y), lowR = Math.max(Q[46].y, Q[47].y);
+    const bridgeLine = rowLine([Q[39].x + 0.25 * gap, EY - 0.32 * d, Q[42].x - 0.25 * gap, EY + 0.1 * d]);
+    const bridgeEdge = rowEdge([Q[39].x + 6, EY - 0.5 * d, Q[42].x - 6, EY + 0.12 * d]);
+    const rimLine = (colLine([Q[36].x, lowL + 0.12 * d, Q[39].x, lowL + 0.55 * d]) + colLine([Q[42].x, lowR + 0.12 * d, Q[45].x, lowR + 0.55 * d])) / 2;
+    const eyeLum = (mean(Y, [Q[36].x - 4, EY - 0.28 * d, Q[39].x + 2, EY + 0.25 * d]) + mean(Y, [Q[42].x - 2, EY - 0.28 * d, Q[45].x + 4, EY + 0.25 * d])) / 2;
+    const chL = [Q[2].x + 0.15 * d, Q[29].y, Q[31].x - 0.1 * d, Q[31].y + 0.15 * d], chR = [Q[35].x + 0.1 * d, Q[29].y, Q[14].x - 0.15 * d, Q[35].y + 0.15 * d];
+    const dark = eyeLum / Math.max(1, (mean(Y, chL) + mean(Y, chR)) / 2);
+    const chroma = (r) => [mean(CB, r), mean(CR, r)], dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+    const refs = [chroma([Q[21].x, Q[21].y - 0.4 * d, Q[22].x, Q[21].y - 0.12 * d]), chroma([Q[27].x - 0.12 * d, Q[27].y, Q[28].x + 0.12 * d, Q[29].y])];   // forehead, top of nose
+    const far = (r) => Math.min(...refs.map((ref) => dist(chroma(r), ref)));
+    const cheeks = ((a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2])(chroma(chL), chroma(chR));
+    const maskScore = Math.min(far([Q[7].x, Q[57].y + 0.12 * d, Q[9].x, Q[8].y - 0.1 * d]), far([Q[48].x + 0.1 * d, Q[33].y + 0.06 * d, Q[54].x - 0.1 * d, Q[51].y - 0.05 * d]), Math.min(...refs.map((ref) => dist(cheeks, ref))));
+    let kind = null;
+    if (maskScore >= 21) kind = 'mask';
+    else if (dark < 0.40) kind = 'sunglasses';
+    else if (bridgeLine >= 0.14 || rimLine >= 0.45 || bridgeEdge >= 0.30) kind = 'glasses';
+    return { kind, bridgeLine: +bridgeLine.toFixed(3), bridgeEdge: +bridgeEdge.toFixed(3), rimLine: +rimLine.toFixed(3), dark: +dark.toFixed(3), maskScore: +maskScore.toFixed(1) };
+  }
+  const OBSTRUCTION_MSG = {
+    glasses: 'Please remove your eyeglasses — the face scan needs your eyes fully visible.',
+    sunglasses: 'Please remove your sunglasses — the face scan needs your eyes fully visible.',
+    mask: 'Please remove your face mask or anything covering your mouth, nose or chin.'
+  };
+  // Decide on the last few frames, so one noisy frame neither blocks nor lets through.
+  function obstructionTracker() {
+    const hist = []; let lastKind = null;
+    return function (det, video, yaw) {
+      if (Math.abs(yaw) <= 0.14) {             // only judge while facing the camera; a turned head distorts the regions
+        let r = null; try { r = obstruction(video, det.landmarks); } catch (e) { r = null; }
+        if (r) { hist.push(r.kind); if (hist.length > 6) hist.shift(); if (r.kind) lastKind = r.kind; window.__lastObstruction = r; }
+      }
+      const flagged = hist.filter(Boolean).length;
+      if (flagged >= 3 || (flagged >= 2 && flagged * 2 > hist.length)) return lastKind;
+      return null;
+    };
+  }
+
   function poseCheck(key, m, baseW) {
     const ay = Math.abs(m.yaw);
     switch (key) {
@@ -561,6 +634,7 @@
     const video = $('idvVideo');
     const opts = new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.5 });
     let idx = 0, okFrames = 0, baseW = null, stepStart = Date.now(), noFaceSince = Date.now();
+    const obTrack = obstructionTracker();
     while (S && token === S.loopToken) {
       await sleep(170);
       if (!S || token !== S.loopToken) return;
@@ -584,6 +658,9 @@
       const lt = lighting(video, m.box);
       pill('pillLight', lt.ok);
       if (!lt.ok) { okFrames = 0; banner(lt.msg, 'bad'); continue; }
+      const ob = obTrack(det, video, m.yaw);
+      pill('pillClear', !ob);
+      if (ob) { okFrames = 0; banner(OBSTRUCTION_MSG[ob], 'bad'); continue; }
 
       const pc = poseCheck(cur.key, m, baseW || m.wRatio);
       const forced = S.forceNow && cur.key !== 'straight';
@@ -904,7 +981,7 @@
   };
 
   // Shared helpers for face-auth.js (face sign-in, ID deletion)
-  window.IDVFace = { ensureModels, faceMetrics, lighting, poseCheck };
+  window.IDVFace = { ensureModels, faceMetrics, lighting, poseCheck, obstruction, obstructionTracker, OBSTRUCTION_MSG };
 
   // Esc key handled here for this dialog (app.js ignores it)
   document.addEventListener('keydown', (e) => {

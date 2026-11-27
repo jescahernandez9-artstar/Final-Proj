@@ -101,7 +101,20 @@ def _db_run(fn):
                 if attempt == 2:
                     raise
 
+OWNER_EMAIL = 'jescahernandez9@gmail.com'
+OLD_OWNER_EMAILS = {'', 'owner.annetea@gmail.com'}
+
+def _migrate(data):
+    """v9: the owner account's Gmail is now jescahernandez9@gmail.com (replaces the old placeholder)."""
+    owner = (data.get('accounts') or {}).get('owner')
+    if isinstance(owner, dict) and str(owner.get('email') or '').strip().lower() in OLD_OWNER_EMAILS:
+        owner['email'] = OWNER_EMAIL
+    return data
+
 def load_data():
+    return _migrate(_load_data())
+
+def _load_data():
     if DATABASE_URL:
         def get(c):
             c.execute('SELECT data FROM brewtrack_state WHERE id = 1'); return c.fetchone()
@@ -350,23 +363,36 @@ def forgot_status():
     """Lets the login page warn early when email is not set up (says nothing about any account)."""
     return jsonify({"email_ready": email_ready() or os.environ.get('DEV_PRINT_CODE') == '1'})
 
+def resolve_account(ident, accounts):
+    """Username OR the Gmail address registered on the account -> (username, account) or (None, None)."""
+    ident = str(ident or '').strip().lower()
+    if not ident:
+        return None, None
+    if ident in accounts and isinstance(accounts[ident], dict):
+        return ident, accounts[ident]
+    if '@' in ident:
+        for u, a in accounts.items():
+            if isinstance(a, dict) and str(a.get('email') or '').strip().lower() == ident:
+                return u, a
+    return None, None
+
 @app.route('/api/forgot/request', methods=['POST'])
 def forgot_request():
     body = request.json or {}
-    user = str(body.get('username', '')).strip().lower()
-    if not user:
-        return jsonify({"ok": False, "error": "Enter your username."}), 400
+    ident = str(body.get('username', '')).strip().lower()   # a username or a registered Gmail address
+    if not ident:
+        return jsonify({"ok": False, "error": "Enter your username or Gmail address."}), 400
     dev = os.environ.get('DEV_PRINT_CODE') == '1'
     if not email_ready() and not dev:
         return jsonify({"ok": False, "error": "email_not_configured"}), 503
     now = time.time()
     with RESET_LOCK:
-        for key in (('u', user), ('ip', request.remote_addr)):
+        for key in (('u', ident), ('ip', request.remote_addr)):
             RATE[key] = [t for t in RATE.get(key, []) if now - t < 900]
-        if len(RATE[('u', user)]) >= 3 or len(RATE[('ip', request.remote_addr)]) >= 10:
+        if len(RATE[('u', ident)]) >= 3 or len(RATE[('ip', request.remote_addr)]) >= 10:
             return jsonify({"ok": False, "error": "Too many requests. Please wait a few minutes and try again."}), 429
-        RATE[('u', user)].append(now); RATE[('ip', request.remote_addr)].append(now)
-    acct = (load_data().get('accounts') or {}).get(user)
+        RATE[('u', ident)].append(now); RATE[('ip', request.remote_addr)].append(now)
+    user, acct = resolve_account(ident, load_data().get('accounts') or {})
     email = str((acct or {}).get('email') or '').strip()
     if acct and email:           # same answer either way, so usernames cannot be probed
         code = '%06d' % secrets.randbelow(1000000)
@@ -374,8 +400,8 @@ def forgot_request():
         try:
             if email_ready():
                 send_email(email, 'AnneTea BrewTrack password reset code',
-                    'Your AnneTea BrewTrack password reset code is: %s\n\nIt expires in 10 minutes. '
-                    'If you did not ask to reset your password, ignore this email - your password has not changed.' % code)
+                    'Your AnneTea BrewTrack password reset code is: %s\n\nUsername: %s\n\nIt expires in 10 minutes. '
+                    'If you did not ask to reset your password, ignore this email - your password has not changed.' % (code, user))
             else:
                 print('[DEV_PRINT_CODE] reset code for %s (%s): %s' % (user, email, code))
         except Exception as e:
@@ -389,7 +415,9 @@ def forgot_request():
 @locked
 def forgot_confirm():
     body = request.json or {}
-    user = str(body.get('username', '')).strip().lower()
+    ident = str(body.get('username', '')).strip().lower()
+    user, _a = resolve_account(ident, load_data().get('accounts') or {})
+    user = user or ident
     code = str(body.get('code', '')).strip()
     new_hash = str(body.get('newHash', '')).strip().lower()
     if not re.fullmatch(r'[0-9a-f]{64}', new_hash) or not re.fullmatch(r'\d{6}', code):

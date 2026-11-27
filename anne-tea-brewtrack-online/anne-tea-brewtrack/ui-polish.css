@@ -83,3 +83,55 @@ tbody tr:hover td { background: color-mix(in srgb, var(--panel-2) 70%, transpare
 #recipeList td:nth-child(2), #recipeList th:nth-child(2) { width: 62%; }
 #restockForm .qty-pair { margin: 6px 0 12px; }
 #recipeList { display: block; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; box-shadow: var(--shadow-sm); margin-top: 12px; }
+
+/* ==========================================================================
+   v9 — alert colours: LOW STOCK = orange · OUT OF STOCK = red · EXPIRING = violet
+   ========================================================================== */
+:root { --alert-low: #e8590c; --alert-low-soft: #fff1e6; --alert-out: #d92d20; --alert-out-soft: #fdeceb; --alert-exp: #7c3aed; --alert-exp-soft: #f3edff; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --alert-low: #ff922b; --alert-low-soft: rgba(255,146,43,.16); --alert-out: #ff6b6b; --alert-out-soft: rgba(255,107,107,.16); --alert-exp: #b197fc; --alert-exp-soft: rgba(177,151,252,.16); } }
+:root[data-theme="dark"] { --alert-low: #ff922b; --alert-low-soft: rgba(255,146,43,.16); --alert-out: #ff6b6b; --alert-out-soft: rgba(255,107,107,.16); --alert-exp: #b197fc; --alert-exp-soft: rgba(177,151,252,.16); }
+
+/* Banners (stacked by layoutBanners() in stock-menu.js) */
+.out-stock-banner { position: fixed; top: 0; left: 0; right: 0; height: 52px; z-index: 350; display: flex; align-items: center; gap: 12px; padding: 0 12px 0 14px; font-size: .9rem; font-weight: 600; cursor: pointer; color: var(--text); animation: bannerIn .3s ease; }
+.out-stock-banner[hidden] { display: none !important; }
+body:has(#loginScreen.active) .out-stock-banner { display: none !important; }
+.out-stock-banner .banner-msg { flex: 1; line-height: 1.3; }
+.out-stock-banner { background: color-mix(in srgb, var(--alert-out) 16%, var(--panel)); border-bottom: 1px solid color-mix(in srgb, var(--alert-out) 45%, var(--line)); border-left: 5px solid var(--alert-out); }
+.out-stock-banner .banner-icon { background: var(--alert-out-soft); color: var(--alert-out); }
+.out-stock-banner .banner-cta { background: var(--alert-out); }
+.low-stock-banner { background: color-mix(in srgb, var(--alert-low) 16%, var(--panel)); border-bottom-color: color-mix(in srgb, var(--alert-low) 45%, var(--line)); border-left-color: var(--alert-low); }
+.low-stock-banner .banner-icon { background: var(--alert-low-soft); color: var(--alert-low); }
+.low-stock-banner .banner-cta { background: var(--alert-low); }
+.expiry-banner { background: color-mix(in srgb, var(--alert-exp) 16%, var(--panel)); border-bottom-color: color-mix(in srgb, var(--alert-exp) 45%, var(--line)); border-left-color: var(--alert-exp); }
+.expiry-banner .banner-icon { background: var(--alert-exp-soft); color: var(--alert-exp); }
+.expiry-banner .banner-cta { background: var(--alert-exp); }
+.expiry-banner:not([hidden]) ~ .low-stock-banner { top: auto; }
+/* push the page down by however many banners are showing */
+body .screen.active, body:has(.low-stock-banner:not([hidden])) .screen.active, body:has(.expiry-banner:not([hidden])) .screen.active,
+body:has(.low-stock-banner:not([hidden])):has(.expiry-banner:not([hidden])) .screen.active { padding-top: var(--banner-h, 0px); }
+body:has(#loginScreen.active) .screen.active { padding-top: 0; }
+@media (max-width: 640px) { .out-stock-banner { font-size: .82rem; } }
+
+/* Pop-up messages */
+.toast.low { border-left-color: var(--alert-low); } .toast.low .t-ic { color: var(--alert-low); }
+.toast.out { border-left-color: var(--alert-out); } .toast.out .t-ic { color: var(--alert-out); }
+.toast.exp { border-left-color: var(--alert-exp); } .toast.exp .t-ic { color: var(--alert-exp); }
+.toast.low, .toast.out, .toast.exp { border-left-width: 6px; }
+
+/* Inventory table + top-bar Inventory button */
+.pill.low { background: var(--alert-low-soft); color: var(--alert-low); }
+.pill.out { background: var(--alert-out-soft); color: var(--alert-out); font-weight: 800; }
+.inv-low-header { background: var(--alert-low-soft); color: var(--alert-low); border-color: color-mix(in srgb, var(--alert-low) 40%, transparent); }
+.inv-low-header.inv-out-header { background: var(--alert-out-soft); color: var(--alert-out); border-color: color-mix(in srgb, var(--alert-out) 40%, transparent); }
+.inv-row-low td { background: var(--alert-low-soft); }
+.inv-row-out td { background: var(--alert-out-soft); font-weight: 700; }
+.inv-row-out td:first-child { box-shadow: inset 4px 0 0 var(--alert-out); }
+.inv-row-low td:first-child { box-shadow: inset 4px 0 0 var(--alert-low); }
+.prod-expiring { color: var(--alert-exp); }
+.prod-expired { color: var(--alert-exp); background: var(--alert-exp-soft); padding: 2px 6px; border-radius: 6px; }
+.tb-btn.stock-alert { color: var(--alert-low); }
+.tb-btn.stock-alert .badge { background: var(--alert-low); }
+.tb-btn.stock-out { color: var(--alert-out); }
+.tb-btn.stock-out .badge { background: var(--alert-out); }
+tbody tr.inv-row-low:hover td { background: color-mix(in srgb, var(--alert-low) 22%, var(--panel)); }
+tbody tr.inv-row-out:hover td { background: color-mix(in srgb, var(--alert-out) 22%, var(--panel)); }

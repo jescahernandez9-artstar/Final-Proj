@@ -20,8 +20,8 @@
     m.innerHTML = `<div class="modal-box idv-box" style="max-width:520px"><h3 id="faTitle">Face recognition</h3>
       <p class="hint-text" id="faSub" style="margin-bottom:10px"></p>
       <div class="idv-cam"><video id="faVideo" autoplay playsinline muted></video><div class="idv-oval" aria-hidden="true"></div><div class="idv-banner" id="faBanner">Starting camera…</div></div>
-      <div class="idv-pills"><span class="pill" id="faPillFace">Entire face visible</span><span class="pill" id="faPillLight">Proper lighting</span></div>
-      <p class="hint-text">Look straight at the camera, then follow the head-turn instruction. Only one person in the frame.</p>
+      <div class="idv-pills"><span class="pill" id="faPillFace">Entire face visible</span><span class="pill" id="faPillLight">Proper lighting</span><span class="pill" id="faPillClear">No glasses / mask</span></div>
+      <p class="hint-text">Remove eyeglasses, sunglasses, face mask or anything covering your face. Look straight at the camera, then follow the head-turn instruction. Only one person in the frame.</p>
       <div class="idv-actions"><button type="button" class="modal-close" id="faCancel">Cancel</button></div></div>`;
     document.body.appendChild(m); return m;
   }
@@ -39,7 +39,7 @@
         video.srcObject = null; modal.classList.remove('show'); resolve(res);
       };
       $('faCancel').onclick = () => finish({ ok: false, cancelled: true, reason: 'Cancelled.' });
-      modal.classList.add('show'); banner('Starting camera…'); pill('faPillFace', null); pill('faPillLight', null);
+      modal.classList.add('show'); banner('Starting camera…'); pill('faPillFace', null); pill('faPillLight', null); pill('faPillClear', null);
       try {
         const T = o.template || {};
         const tplAll = Object.values(T).map((d) => Float32Array.from(d));
@@ -55,6 +55,7 @@
         const det = new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.5 });
         const turn = Math.random() < 0.5 ? 'left' : 'right';
         let phase = 'front', good = 0, bad = 0, badTurn = 0, okFrames = 0, best = 9; const t0 = Date.now();
+        const obTrack = window.IDVFace.obstructionTracker();
         while (!done) {
           await sleep(170); if (done) return;
           if (Date.now() - t0 > TIMEOUT_MS) return finish({ ok: false, reason: 'Timed out. Try again in good lighting, or use your password.' });
@@ -67,6 +68,8 @@
           if (!m.inside) { okFrames = 0; banner('Make sure your entire face is visible.', 'bad'); continue; }
           const lt = window.IDVFace.lighting(video, m.box); pill('faPillLight', lt.ok);
           if (!lt.ok) { okFrames = 0; banner(lt.msg, 'bad'); continue; }
+          const ob = obTrack(dets[0], video, m.yaw); pill('faPillClear', !ob);
+          if (ob) { okFrames = 0; banner(window.IDVFace.OBSTRUCTION_MSG[ob], 'bad'); continue; }
           const key = phase === 'front' ? 'straight' : turn;
           const pc = window.IDVFace.poseCheck(key, m, m.wRatio);
           if (!pc.pass) { okFrames = 0; banner(phase === 'front' ? 'Look straight at the camera.' : 'Now slowly turn your head to your ' + turn + '.'); continue; }

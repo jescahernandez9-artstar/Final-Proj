@@ -24,13 +24,18 @@ function resolveIngredient(text) {
 
 // Low-stock level per ingredient (saved, editable in Inventory → Edit). Falls back to MIN_STOCK.
 function getMinMap() { try { return JSON.parse(localStorage.getItem('at_ingredient_min') || '{}') || {}; } catch (e) { return {}; } }
-function minFor(name) { const v = getMinMap()[name]; return v != null && v >= 0 ? v : MIN_STOCK; }
+// Nothing may sit below STOCK_FLOOR (20) without being flagged: a saved level can only raise the alert, never lower it.
+const STOCK_FLOOR = 20;
+function minFor(name) { const v = getMinMap()[name]; return Math.max(STOCK_FLOOR, v != null && v >= 0 ? v : MIN_STOCK); }
 function setMinFor(name, v) { const m = getMinMap(); if (v == null || v === '' || isNaN(v)) delete m[name]; else m[name] = fmtQty(v); localStorage.setItem('at_ingredient_min', JSON.stringify(m)); }
 function getUnitMap() { try { return JSON.parse(localStorage.getItem('at_ingredient_unit') || '{}') || {}; } catch (e) { return {}; } }
 function unitOf(name) { return getUnitMap()[name] || ''; }
 function setUnitFor(name, u) { const m = getUnitMap(); u = cleanName(u); if (!u) delete m[name]; else m[name] = u; localStorage.setItem('at_ingredient_unit', JSON.stringify(m)); }
 const withUnit = (q, name) => fmtQty(q) + (unitOf(name) ? ' ' + unitOf(name) : '');
-function lowStockItems() { return Object.entries(inventory).filter(([n, q]) => q <= minFor(n)); }
+// Low = below the alert level (always at least 20). Out = 0 or less.
+function isLowQty(name, q) { return q < minFor(name); }
+function lowStockItems() { return Object.entries(inventory).filter(([n, q]) => isLowQty(n, q)); }
+function outOfStockItems() { return Object.entries(inventory).filter(([, q]) => q <= 0); }
 
 // A category decides whether its drinks ask for a sugar level (editable in Products → Categories)
 function productNeedsSugar(product) {
@@ -427,18 +432,19 @@ function openInventory(opts) {
   const expMap = getIngredientExpiryMap();
   const q = ((byId('invSearch') || {}).value || '').trim().toLowerCase();
   let entries = Object.entries(inventory).sort((a, b) => a[0].localeCompare(b[0], undefined, { sensitivity: 'base' }));
-  const lowAll = entries.filter(([n, v]) => v <= minFor(n));
+  const lowAll = entries.filter(([n, v]) => isLowQty(n, v)), outAll = lowAll.filter(([, v]) => v <= 0);
   if (q) entries = entries.filter(([n]) => n.toLowerCase().includes(q));
   let html = '';
-  if (lowAll.length) html += '<div class="inv-low-header" id="invLowHeader"><svg class="ic"><use href="#i-alert"/></svg> ' + lowAll.length + ' item(s) below minimum stock — restock these first</div>';
+  if (outAll.length) html += '<div class="inv-low-header inv-out-header" id="invOutHeader"><svg class="ic"><use href="#i-alert"/></svg> ' + outAll.length + ' item(s) OUT OF STOCK — restock these first</div>';
+  if (lowAll.length > outAll.length) html += '<div class="inv-low-header" id="invLowHeader"><svg class="ic"><use href="#i-alert"/></svg> ' + (lowAll.length - outAll.length) + ' item(s) low on stock (below ' + STOCK_FLOOR + ' or below their alert level)</div>';
   html += '<table><thead><tr><th>Item</th><th>Stock</th><th>Min</th><th>Expires</th><th>Status</th><th></th></tr></thead><tbody>';
   entries.forEach(([name, qty]) => {
-    const isLow = qty <= minFor(name), exp = expMap[name] || '', days = exp ? daysUntilExpiry(exp) : null;
+    const isLow = isLowQty(name, qty), isOut = qty <= 0, exp = expMap[name] || '', days = exp ? daysUntilExpiry(exp) : null;
     let expCell = '—';
     if (exp) expCell = days != null && days < 0 ? '<span class="prod-expired">EXPIRED</span>' : days != null && days <= 5 ? '<span class="prod-expiring">' + exp + ' (' + days + 'd)</span>' : exp;
-    const status = qty <= 0 ? '<span class="pill low">Out</span>' : isLow ? '<span class="pill low">Low</span>' : '<span class="pill ok">OK</span>';
+    const status = isOut ? '<span class="pill out">Out of stock</span>' : isLow ? '<span class="pill low">Low stock</span>' : '<span class="pill ok">OK</span>';
     const a = escH(name).replace(/&#39;/g, "\\'");
-    html += '<tr' + (isLow ? ' class="inv-row-low"' : '') + '><td>' + escH(name) + '</td><td>' + withUnit(qty, name) + '</td><td>' + minFor(name) + '</td><td>' + expCell + '</td><td>' + status + '</td>' +
+    html += '<tr' + (isOut ? ' class="inv-row-out"' : isLow ? ' class="inv-row-low"' : '') + '><td>' + escH(name) + '</td><td>' + withUnit(qty, name) + '</td><td>' + minFor(name) + '</td><td>' + expCell + '</td><td>' + status + '</td>' +
       '<td style="white-space:nowrap"><button type="button" class="link-btn" onclick="adjustFromInventory(\'' + a + '\')">Adjust</button>' +
       '<button type="button" class="link-btn" onclick="editInventoryItem(\'' + a + '\')">Edit</button>' +
       '<button type="button" class="link-btn" onclick="removeInventoryItem(\'' + a + '\')">Remove</button></td></tr>';
@@ -446,7 +452,7 @@ function openInventory(opts) {
   if (!entries.length) html += '<tr><td colspan="6" style="text-align:center;color:var(--muted)">' + (q ? 'No ingredient matches “' + escH(q) + '”' : 'Inventory is empty — add an item') + '</td></tr>';
   byId('invTable').innerHTML = html + '</tbody></table>';
   byId('invModal').classList.add('show');
-  if (opts.focusLow) setTimeout(() => { const h = byId('invLowHeader'); if (h) h.scrollIntoView({ block: 'nearest' }); }, 50);
+  if (opts.focusLow) setTimeout(() => { const h = byId('invOutHeader') || byId('invLowHeader'); if (h) h.scrollIntoView({ block: 'nearest' }); }, 50);
 }
 
 function adjustFromInventory(name) {
@@ -512,7 +518,7 @@ function saveInventoryItem(e) {
   const qty = parseFloat(byId('invItemQty').value), expiry = byId('invItemExpiry').value || null;
   const minRaw = byId('invItemMin').value, min = minRaw === '' ? null : parseFloat(minRaw), unit = byId('invItemUnit').value;
   if (!name) return bad('Item name is required.');
-  if (min != null && (isNaN(min) || min < 0)) return bad('Low-stock alert must be 0 or more.');
+  if (min != null && (isNaN(min) || min < STOCK_FLOOR)) return bad('Low-stock alert must be ' + STOCK_FLOOR + ' or more. Anything below ' + STOCK_FLOOR + ' is always flagged as low stock.');
   const clash = resolveIngredient(name);
   if (clash && clash !== orig) return bad('“' + clash + '” already exists in the inventory' + (clash !== name ? ' (you typed “' + name + '”)' : '') + '. Use Adjust to add or remove stock instead of creating a duplicate.');
   if (!orig) {
@@ -790,11 +796,65 @@ document.addEventListener('keydown', (e) => {
   e.preventDefault(); undoLast();
 });
 
+// ---------- ALERT SOUND: every pop-up message, banner, error and confirm box makes a sound ----------
+// Made with the Web Audio API (no sound files). Browsers only allow sound after the first tap/click/key on the page.
+const SOUND_KEY = 'at_notify_sound';
+const notifySoundOn = () => localStorage.getItem(SOUND_KEY) !== '0';
+let _actx = null, _lastBeep = 0;
+function _audio() {
+  const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return null;
+  if (!_actx) { try { _actx = new AC(); } catch (e) { return null; } }
+  if (_actx.state === 'suspended') _actx.resume().catch(() => {});
+  return _actx;
+}
+['pointerdown', 'keydown', 'touchstart'].forEach((ev) => document.addEventListener(ev, () => { _audio(); }, { capture: true, passive: true }));
+const ALERT_TONES = {          // [frequency Hz, start s, length s]
+  ok:   [[880, 0, .12], [1320, .1, .16]],
+  info: [[740, 0, .18]],
+  low:  [[660, 0, .14], [660, .2, .14]],                    // low stock: two beeps
+  out:  [[880, 0, .16], [587, .18, .16], [392, .36, .28]],  // out of stock: falling three-tone
+  exp:  [[523, 0, .16], [659, .14, .16], [784, .28, .26]],  // expiring: rising chime
+  err:  [[440, 0, .16], [330, .18, .3]],
+  warn: [[600, 0, .12], [600, .16, .12], [600, .32, .12]]
+};
+function playAlertSound(kind, force) {
+  if (!force && !notifySoundOn()) return;
+  const now = Date.now(); if (!force && now - _lastBeep < 250) return;   // several messages at once = one sound
+  _lastBeep = now;
+  const ctx = _audio(); if (!ctx) return;
+  try {
+    const t0 = ctx.currentTime + 0.02;
+    (ALERT_TONES[kind] || ALERT_TONES.info).forEach(([f, st, len]) => {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = kind === 'err' || kind === 'out' ? 'square' : 'sine'; o.frequency.value = f;
+      const vol = o.type === 'square' ? 0.09 : 0.22;
+      g.gain.setValueAtTime(0.0001, t0 + st); g.gain.exponentialRampToValueAtTime(vol, t0 + st + 0.015); g.gain.exponentialRampToValueAtTime(0.0001, t0 + st + len);
+      o.connect(g); g.connect(ctx.destination); o.start(t0 + st); o.stop(t0 + st + len + 0.02);
+    });
+  } catch (e) {}
+}
+// Browser confirm/alert boxes beep too
+(function () {
+  const c = window.confirm.bind(window), a = window.alert.bind(window);
+  window.confirm = (m) => { playAlertSound('warn'); return c(m); };
+  window.alert = (m) => { playAlertSound('err'); return a(m); };
+})();
+// Red error lines inside forms (wrong password, missing field…) beep when they appear
+document.addEventListener('DOMContentLoaded', () => {
+  const seen = new WeakMap();
+  const check = (el) => { const vis = !el.hidden && el.textContent.trim() !== ''; const key = vis ? el.textContent : ''; if (vis && seen.get(el) !== key) playAlertSound('err'); seen.set(el, key); };
+  new MutationObserver((muts) => muts.forEach((m) => {
+    const t = m.target.nodeType === 1 ? m.target : m.target.parentElement;
+    if (t && t.classList && t.classList.contains('error-msg')) check(t);
+  })).observe(document.body, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ['hidden'] });
+});
+
 function toast(msg, type, opts) {
   type = type || 'info'; opts = opts || {};
   const wrap = byId('toastWrap'); if (!wrap) return;
-  const icon = { ok: 'check', err: 'alert', info: 'info' }[type] || 'info';
-  const el = document.createElement('div'); el.className = 'toast ' + type; el.setAttribute('role', type === 'err' ? 'alert' : 'status');
+  const icon = { ok: 'check', err: 'alert', info: 'info', low: 'alert', out: 'alert', exp: 'alert' }[type] || 'info';
+  if (!opts.silent) playAlertSound(type);
+  const el = document.createElement('div'); el.className = 'toast ' + type; el.setAttribute('role', type === 'err' || type === 'out' ? 'alert' : 'status');
   el.innerHTML = '<svg class="ic t-ic" aria-hidden="true"><use href="#i-' + icon + '"/></svg><span class="t-msg"></span>';
   el.querySelector('.t-msg').textContent = msg;
   const close = () => { el.classList.add('leaving'); setTimeout(() => { el.remove(); syncToastClear(); }, 250); };
@@ -805,45 +865,66 @@ function toast(msg, type, opts) {
     el.appendChild(b);
   }
   const x = document.createElement('button'); x.className = 't-x'; x.setAttribute('aria-label', 'Dismiss notification'); x.textContent = '×'; x.onclick = (ev) => { ev.stopPropagation(); close(); }; el.appendChild(x);
-  if (!opts.action && type !== 'err') el.dataset.soft = '1';   // routine messages clear on the next click anywhere
+  if (!opts.action && !['err', 'out', 'low', 'exp'].includes(type)) el.dataset.soft = '1';   // routine messages clear on the next click anywhere
   wrap.appendChild(el);
   const all = wrap.querySelectorAll('.toast'); for (let i = 0; i < all.length - 3; i++) all[i].remove();   // keep at most 3 (closed Undo messages stay in the Undo button)
   syncToastClear();
   if (notifyAutoHide() || opts.duration) setTimeout(close, opts.duration || (opts.action ? 7000 : 3500));
 }
 function notifSettingsHtml() {
-  return '<h4 class="idv-sub" style="margin-top:18px">Notifications</h4><label class="check"><input type="checkbox" id="notifAutoHide" ' + (notifyAutoHide() ? 'checked' : '') + '/> <span>Hide pop-up messages automatically after a few seconds<br><span class="hint-text">Off = messages stay until you tap ×. Closed messages that had an Undo can still be undone with the Undo button at the top.</span></span></label>';
+  return '<h4 class="idv-sub" style="margin-top:18px">Notifications</h4><label class="check" style="margin-bottom:8px"><input type="checkbox" id="notifSound" ' + (notifySoundOn() ? 'checked' : '') + '/> <span>Play a sound with every alert and notification<br><span class="hint-text">Two beeps = low stock (orange) · falling tones = out of stock (red) · chime = expiring (violet).</span></span></label><label class="check"><input type="checkbox" id="notifAutoHide" ' + (notifyAutoHide() ? 'checked' : '') + '/> <span>Hide pop-up messages automatically after a few seconds<br><span class="hint-text">Off = messages stay until you tap ×. Closed messages that had an Undo can still be undone with the Undo button at the top.</span></span></label>';
 }
+document.addEventListener('change', (e) => { if (e.target && e.target.id === 'notifSound') { localStorage.setItem(SOUND_KEY, e.target.checked ? '1' : '0'); if (e.target.checked) playAlertSound('ok', true); } });
 document.addEventListener('change', (e) => { if (e.target && e.target.id === 'notifAutoHide') { localStorage.setItem(AUTOHIDE_KEY, e.target.checked ? '1' : '0'); toast('Pop-up messages ' + (e.target.checked ? 'will hide automatically' : 'will stay until closed'), 'info'); } });
 
-let lowDismissedSig = null, lowToastSig = null, expDismissedSig = null, expToastSig = null;
+let lowDismissedSig = null, lowToastSig = null, outDismissedSig = null, outToastSig = null, expDismissedSig = null, expToastSig = null;
+const sigOf = (list) => list.map(([n]) => n).sort().join('|');
+// Banners stack at the top: out of stock (red) · low stock (orange) · expiring (violet)
+function layoutBanners() {
+  let top = 0;
+  ['outStockBanner', 'lowStockBanner', 'expiryBanner'].forEach((id) => { const b = byId(id); if (b && !b.hidden) { b.style.top = top + 'px'; top += 52; } });
+  document.body.style.setProperty('--banner-h', top + 'px');
+  document.body.classList.toggle('has-expiry-banner', !!(byId('expiryBanner') && !byId('expiryBanner').hidden));
+}
 function checkLowStockNotify() {
-  const low = lowStockItems();
-  updateStockButtons(low.length);
+  const all = lowStockItems(), out = all.filter(([, q]) => q <= 0), low = all.filter(([, q]) => q > 0);
+  updateStockButtons(all.length, out.length);
+  const ob = byId('outStockBanner'), ot = byId('outStockBannerText');
+  if (ob && ot) {
+    if (!out.length) { ob.hidden = true; outDismissedSig = outToastSig = null; }
+    else {
+      const sig = sigOf(out);
+      ot.textContent = 'Out of stock: ' + out.slice(0, 4).map(([n]) => n).join(' · ') + (out.length > 4 ? ' · +' + (out.length - 4) + ' more' : '') + ' — tap to restock';
+      ob.hidden = outDismissedSig === sig;
+      if (outToastSig !== sig) { outToastSig = sig; toast(out.length + ' item(s) OUT OF STOCK: ' + out.slice(0, 3).map(([n]) => n).join(', ') + (out.length > 3 ? '…' : ''), 'out'); }
+    }
+  }
   const banner = byId('lowStockBanner'), text = byId('lowStockBannerText');
   if (banner && text) {
     if (!low.length) { banner.hidden = true; lowDismissedSig = lowToastSig = null; }
     else {
-      const sig = low.map(([n]) => n).sort().join('|');
+      const sig = sigOf(low);
       text.textContent = 'Low stock: ' + low.slice(0, 4).map(([n, q]) => n + ' (' + q + ')').join(' · ') + (low.length > 4 ? ' · +' + (low.length - 4) + ' more' : '') + ' — tap to open';
       banner.hidden = lowDismissedSig === sig;
-      if (lowToastSig !== sig) { lowToastSig = sig; toast(low.length + ' item(s) low on stock — open Stock', 'err'); }
+      if (lowToastSig !== sig) { lowToastSig = sig; toast(low.length + ' item(s) low on stock (below ' + STOCK_FLOOR + ') — open Inventory', 'low'); }
     }
   }
   checkExpiryNotify();
 }
-function dismissLowStockBanner() { lowDismissedSig = lowStockItems().map(([n]) => n).sort().join('|'); const b = byId('lowStockBanner'); if (b) b.hidden = true; }
+function dismissLowStockBanner() { lowDismissedSig = sigOf(lowStockItems().filter(([, q]) => q > 0)); const b = byId('lowStockBanner'); if (b) b.hidden = true; layoutBanners(); }
+function dismissOutStockBanner() { outDismissedSig = sigOf(outOfStockItems()); const b = byId('outStockBanner'); if (b) b.hidden = true; layoutBanners(); }
 function checkExpiryNotify() {
   const expiring = getExpiringProducts(), banner = byId('expiryBanner'), text = byId('expiryBannerText');
-  if (!banner || !text) return;
-  if (!expiring.length) { banner.hidden = true; document.body.classList.remove('has-expiry-banner'); expDismissedSig = expToastSig = null; return; }
+  if (!banner || !text) return layoutBanners();
+  if (!expiring.length) { banner.hidden = true; expDismissedSig = expToastSig = null; return layoutBanners(); }
   const sig = expiring.map((p) => p.kind + ':' + p.name).sort().join('|');
   const bits = expiring.slice(0, 3).map((p) => { const tag = p.kind === 'ingredient' ? ' [stock]' : ''; return p.name + tag + (p.daysLeft < 0 ? ' (EXPIRED)' : p.daysLeft === 0 ? ' (today)' : ' (' + p.daysLeft + 'd)'); });
   text.textContent = 'Expiring soon: ' + bits.join(' · ') + (expiring.length > 3 ? ' +' + (expiring.length - 3) + ' more' : '') + ' — tap to view';
-  document.body.classList.add('has-expiry-banner'); banner.hidden = expDismissedSig === sig;
-  if (expToastSig !== sig) { expToastSig = sig; toast(expiring.length + ' item(s) expire within 5 days', 'info'); }
+  banner.hidden = expDismissedSig === sig;
+  if (expToastSig !== sig) { expToastSig = sig; toast(expiring.length + ' item(s) expired or expire within 5 days', 'exp'); }
+  layoutBanners();
 }
-function dismissExpiryBanner() { expDismissedSig = getExpiringProducts().map((p) => p.kind + ':' + p.name).sort().join('|'); const b = byId('expiryBanner'); if (b) b.hidden = true; document.body.classList.remove('has-expiry-banner'); }
+function dismissExpiryBanner() { expDismissedSig = getExpiringProducts().map((p) => p.kind + ':' + p.name).sort().join('|'); const b = byId('expiryBanner'); if (b) b.hidden = true; layoutBanners(); }
 
 // Routine ("saved", "added"…) messages disappear on the next click anywhere; errors and Undo messages stay until you close them.
 document.addEventListener('click', () => { document.querySelectorAll('.toast[data-soft]').forEach((t) => t.remove()); syncToastClear(); }, true);

@@ -502,8 +502,8 @@
         </div>
         <div class="field" style="text-align:left">
           <label for="invItemMin">Low-stock alert at</label>
-          <input type="number" id="invItemMin" step="0.1" min="0" placeholder="12" />
-          <p class="hint-text">You are warned when stock falls to this amount or below.</p>
+          <input type="number" id="invItemMin" step="0.1" min="0" placeholder="20" />
+          <p class="hint-text">Anything below 20 is always flagged as low stock. Set a higher number to be warned earlier.</p>
         </div>
         <p id="invItemError" class="error-msg" hidden></p>
         <div style="margin-top:14px">
@@ -545,12 +545,12 @@
   <div id="forgotModal" class="modal">
     <div class="modal-box">
       <h3>Reset Password</h3>
-      <p class="hint-text" style="margin-bottom:14px">We will email a 6-digit code to the email address registered on your account. Enter it here, then choose a new password.</p>
+      <p class="hint-text" style="margin-bottom:14px">Type your username or the Gmail address saved on your account. We will email a 6-digit code to that Gmail. Enter it here, then choose a new password.</p>
 
       <div id="forgotStep1">
         <div class="field" style="text-align:left">
-          <label for="forgotUser">Username</label>
-          <input type="text" id="forgotUser" autocomplete="username" />
+          <label for="forgotUser">Username or Gmail</label>
+          <input type="text" id="forgotUser" autocomplete="username" placeholder="e.g. owner or name@gmail.com" />
         </div>
         <p id="forgotError" class="error-msg" hidden></p>
         <div style="margin-top:14px">
@@ -592,7 +592,15 @@
     <button type="button" class="banner-close" onclick="event.stopPropagation(); dismissExpiryBanner()" title="Dismiss" aria-label="Dismiss">×</button>
   </div>
 
-  <!-- Low stock notification banner -->
+  <!-- Out of stock notification banner (red) -->
+  <div id="outStockBanner" class="out-stock-banner" hidden role="alert" onclick="goToLowStock(event)">
+    <span class="banner-icon" aria-hidden="true">⛔</span>
+    <span class="banner-msg" id="outStockBannerText">Out of stock</span>
+    <button type="button" class="banner-cta" onclick="event.stopPropagation(); goToLowStock(event)">Restock</button>
+    <button type="button" class="banner-close" onclick="event.stopPropagation(); dismissOutStockBanner()" title="Dismiss" aria-label="Dismiss">×</button>
+  </div>
+
+  <!-- Low stock notification banner (orange) -->
   <div id="lowStockBanner" class="low-stock-banner" hidden role="alert" onclick="goToLowStock(event)">
     <span class="banner-icon" aria-hidden="true">⚠</span>
     <span class="banner-msg" id="lowStockBannerText">Low stock alert</span>
